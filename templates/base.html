@@ -16,6 +16,7 @@
                 <a href="{% url 'dashboard' %}" {% if request.path == '/' %}class="active"{% endif %}>Dashboard</a>
                 <a href="{% url 'project-list' %}" {% if '/projects' in request.path %}class="active"{% endif %}>Projects</a>
                 <a href="{% url 'prompt-list' %}" {% if '/prompts' in request.path %}class="active"{% endif %}>Prompts</a>
+                <a href="{% url 'remote-execute' %}" {% if '/remote' in request.path %}class="active"{% endif %}>Remote</a>
             </div>
             <div class="nav-right">
                 <form action="{% url 'search' %}" method="GET">

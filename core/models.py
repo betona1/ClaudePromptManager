@@ -221,3 +221,41 @@ class ServicePort(models.Model):
 
     def __str__(self):
         return f"{self.server_name} {self.ip}:{self.port} ({self.service_name})"
+
+
+EXECUTION_STATUS_CHOICES = [
+    ('queued', 'Queued'),
+    ('running', 'Running'),
+    ('completed', 'Completed'),
+    ('failed', 'Failed'),
+    ('cancelled', 'Cancelled'),
+]
+
+
+class Execution(models.Model):
+    project = models.ForeignKey(
+        Project, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='executions'
+    )
+    prompt = models.ForeignKey(
+        Prompt, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='executions'
+    )
+    command = models.TextField(help_text='The prompt sent to Claude Code')
+    cwd = models.TextField(help_text='Working directory for execution')
+    status = models.CharField(max_length=20, choices=EXECUTION_STATUS_CHOICES, default='queued')
+    output = models.TextField(blank=True, default='')
+    error = models.TextField(blank=True, default='')
+    exit_code = models.IntegerField(null=True, blank=True)
+    pid = models.IntegerField(null=True, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    duration_ms = models.IntegerField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'executions'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Exec #{self.id} [{self.status}] {self.command[:50]}"

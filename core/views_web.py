@@ -5,7 +5,7 @@ from pathlib import Path
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, HttpResponse
 from django.db.models import Count, Q, Max, Min, Sum
-from .models import Project, Terminal, Prompt, Template, Session, ServicePort
+from .models import Project, Terminal, Prompt, Template, Session, ServicePort, Execution
 
 
 def _format_tokens(n):
@@ -303,3 +303,13 @@ def export_view(request):
     response = HttpResponse(content, content_type='application/json')
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
+
+
+def remote_execute(request):
+    """Remote Claude Code execution page."""
+    projects = Project.objects.filter(path__isnull=False).exclude(path='').order_by('name')
+    recent_execs = Execution.objects.select_related('project').order_by('-created_at')[:10]
+    return render(request, 'remote.html', {
+        'projects': projects,
+        'recent_execs': recent_execs,
+    })

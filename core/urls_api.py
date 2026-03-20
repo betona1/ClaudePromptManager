@@ -15,5 +15,9 @@ urlpatterns = [
     path('hook/prompt/', views_api.hook_prompt, name='api-hook-prompt'),
     path('hook/stop/', views_api.hook_stop, name='api-hook-stop'),
     path('discover/', views_api.discover_services, name='api-discover'),
+    path('execute/', views_api.execute_prompt, name='api-execute'),
+    path('execute/list/', views_api.execution_list, name='api-execution-list'),
+    path('execute/<int:execution_id>/stream/', views_api.execution_stream, name='api-execution-stream'),
+    path('execute/<int:execution_id>/cancel/', views_api.cancel_execution_view, name='api-execution-cancel'),
     path('', include(router.urls)),
 ]

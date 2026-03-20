@@ -1,11 +1,14 @@
+import os
 import socket
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 
 from django.db.models import Count, Q
+from django.http import StreamingHttpResponse, JsonResponse
 from rest_framework import viewsets, filters
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.response import Response
-from .models import Project, Terminal, Prompt, Template, Session, ServicePort
+from .models import Project, Terminal, Prompt, Template, Session, ServicePort, Execution
 from .serializers import (
     ProjectSerializer, TerminalSerializer, PromptSerializer,
     PromptDetailSerializer, TemplateSerializer, SessionSerializer,
@@ -262,3 +265,109 @@ def discover_services(request):
         'open_count': len(results['open']),
         'open_ports': results['open'],
     })
+
+
+# ── Remote Execution ────────────────────────────────────────────
+
+@api_view(['POST'])
+def execute_prompt(request):
+    """Start a Claude Code execution. Returns execution ID."""
+    prompt_text = request.data.get('prompt', '').strip()
+    project_id = request.data.get('project_id')
+
+    if not prompt_text:
+        return Response({'error': 'prompt is required'}, status=400)
+
+    # Check concurrent limit
+    active = Execution.objects.filter(status__in=['queued', 'running']).exists()
+    if active:
+        return Response({'error': 'Another execution is already running'}, status=409)
+
+    # Resolve project and cwd
+    project = None
+    cwd = ''
+    if project_id:
+        project = Project.objects.filter(id=project_id).first()
+    if project and project.path:
+        cwd = project.path
+
+    if not cwd or not os.path.isdir(cwd):
+        return Response({'error': 'Valid project with path required'}, status=400)
+
+    # Create Prompt record for CPM tracking
+    prompt_record = Prompt.objects.create(
+        project=project,
+        content=prompt_text,
+        status='wip',
+        source='manual',
+    )
+
+    execution = Execution.objects.create(
+        project=project,
+        prompt=prompt_record,
+        command=prompt_text,
+        cwd=cwd,
+        status='queued',
+    )
+
+    return Response({
+        'execution_id': execution.id,
+        'status': 'queued',
+        'stream_url': f'/api/execute/{execution.id}/stream/',
+    })
+
+
+def execution_stream(request, execution_id):
+    """SSE endpoint that streams Claude Code output."""
+    from .executor import execute_claude
+
+    try:
+        execution = Execution.objects.get(id=execution_id)
+    except Execution.DoesNotExist:
+        return JsonResponse({'error': 'Not found'}, status=404)
+
+    if execution.status not in ('queued', 'running'):
+        return JsonResponse({
+            'status': execution.status,
+            'output': execution.output,
+            'error': execution.error,
+            'exit_code': execution.exit_code,
+        })
+
+    def event_stream():
+        for event_type, data in execute_claude(
+            execution.id, execution.command, execution.cwd
+        ):
+            yield f"event: {event_type}\ndata: {data}\n\n"
+
+    response = StreamingHttpResponse(
+        event_stream(),
+        content_type='text/event-stream'
+    )
+    response['Cache-Control'] = 'no-cache'
+    response['X-Accel-Buffering'] = 'no'
+    return response
+
+
+@api_view(['POST'])
+def cancel_execution_view(request, execution_id):
+    """Cancel a running execution."""
+    from .executor import cancel_execution
+    success = cancel_execution(execution_id)
+    return Response({'cancelled': success})
+
+
+@api_view(['GET'])
+def execution_list(request):
+    """List recent executions."""
+    execs = Execution.objects.select_related('project').order_by('-created_at')[:20]
+    data = [{
+        'id': e.id,
+        'command': e.command[:100],
+        'project_name': e.project.name if e.project else None,
+        'status': e.status,
+        'exit_code': e.exit_code,
+        'duration_ms': e.duration_ms,
+        'created_at': e.created_at.isoformat() if e.created_at else None,
+    } for e in execs]
+    return Response(data)

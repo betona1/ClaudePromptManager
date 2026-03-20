@@ -352,3 +352,37 @@ textarea.inline-edit-input { resize: vertical; }
 
 /* Service section header */
 .service-section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+
+/* Remote Execute */
+.remote-container { display: flex; flex-direction: column; min-height: calc(100vh - 120px); }
+.remote-input-area { flex-shrink: 0; margin-bottom: 16px; }
+.remote-row { margin-bottom: 8px; }
+.remote-select { width: 100%; padding: 10px 12px; font-size: 14px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff; outline: none; }
+.remote-select:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+.remote-textarea { width: 100%; min-height: 80px; padding: 12px; font-size: 16px; border: 1px solid #d1d5db; border-radius: 8px; resize: vertical; font-family: inherit; outline: none; }
+.remote-textarea:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+.remote-textarea:disabled { background: #f3f4f6; }
+.remote-actions { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+.remote-status { font-size: 13px; color: #059669; font-weight: 500; margin-left: 8px; }
+.btn-exec { background: #059669; color: #fff; padding: 10px 24px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.15s; }
+.btn-exec:hover { background: #047857; }
+.btn-cancel { background: #ef4444; color: #fff; padding: 10px 24px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.15s; }
+.btn-cancel:hover { background: #dc2626; }
+.remote-output { flex: 1; min-height: 300px; background: #1e1e1e; color: #d4d4d4; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 13px; line-height: 1.6; padding: 16px; border-radius: 8px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
+.remote-history { margin-top: 16px; }
+.remote-history-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #fff; border-radius: 6px; border: 1px solid #f3f4f6; margin-bottom: 4px; font-size: 13px; flex-wrap: wrap; }
+.remote-history-status { font-size: 11px; padding: 2px 8px; border-radius: 9999px; font-weight: 500; }
+.status-completed { background: #d1fae5; color: #065f46; }
+.status-failed { background: #fee2e2; color: #991b1b; }
+.status-cancelled { background: #fef3c7; color: #92400e; }
+.status-running { background: #dbeafe; color: #1d4ed8; }
+.status-queued { background: #f3f4f6; color: #4b5563; }
+.remote-history-cmd { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.remote-history-project { font-size: 11px; color: #3b82f6; }
+.remote-history-time { font-size: 11px; color: #9ca3af; }
+
+@media (max-width: 768px) {
+    .remote-textarea { font-size: 16px; min-height: 60px; }
+    .remote-output { font-size: 12px; min-height: 250px; }
+    .remote-actions { flex-wrap: wrap; }
+}

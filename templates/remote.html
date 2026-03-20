@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Remote Execute{% endblock %}
+
+{% block content %}
+<div class="remote-container">
+    <!-- Input Area -->
+    <div class="remote-input-area">
+        <div class="remote-row">
+            <select id="project-select" class="remote-select">
+                <option value="">-- Select Project --</option>
+                {% for p in projects %}
+                <option value="{{ p.id }}">{{ p.name }} ({{ p.path|truncatechars:40 }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <textarea id="prompt-input" class="remote-textarea" placeholder="Enter your prompt for Claude Code..." rows="3"></textarea>
+        <div class="remote-actions">
+            <button id="btn-execute" class="btn-exec" onclick="startExecution()">Execute</button>
+            <button id="btn-cancel" class="btn-cancel" onclick="cancelExecution()" style="display:none;">Cancel</button>
+            <span id="exec-status" class="remote-status"></span>
+        </div>
+    </div>
+
+    <!-- Output Area -->
+    <div id="output" class="remote-output"></div>
+
+    <!-- Recent Executions -->
+    {% if recent_execs %}
+    <div class="remote-history">
+        <div class="section-title mt-4 mb-2">Recent Executions</div>
+        {% for e in recent_execs %}
+        <div class="remote-history-item">
+            <span class="remote-history-status status-{{ e.status }}">{{ e.get_status_display }}</span>
+            <span class="remote-history-cmd">{{ e.command|truncatechars:60 }}</span>
+            {% if e.project %}<span class="remote-history-project">{{ e.project.name }}</span>{% endif %}
+            {% if e.duration_ms %}<span class="remote-history-time">{{ e.duration_ms }}ms</span>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<script>
+(function() {
+    'use strict';
+
+    let currentExecutionId = null;
+    let evtSource = null;
+
+    function getCookie(name) {
+        let val = null;
+        document.cookie.split(';').forEach(c => {
+            c = c.trim();
+            if (c.startsWith(name + '=')) val = decodeURIComponent(c.substring(name.length + 1));
+        });
+        return val;
+    }
+
+    function apiFetch(url, opts = {}) {
+        const defaults = {
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        };
+        return fetch(url, { ...defaults, ...opts, headers: { ...defaults.headers, ...opts.headers } });
+    }
+
+    function appendOutput(text) {
+        const el = document.getElementById('output');
+        el.textContent += text + '\n';
+        el.scrollTop = el.scrollHeight;
+    }
+
+    function setRunning(running) {
+        document.getElementById('btn-execute').style.display = running ? 'none' : '';
+        document.getElementById('btn-cancel').style.display = running ? '' : 'none';
+        document.getElementById('prompt-input').disabled = running;
+        document.getElementById('project-select').disabled = running;
+        document.getElementById('exec-status').textContent = running ? 'Running...' : '';
+    }
+
+    window.startExecution = function() {
+        const prompt = document.getElementById('prompt-input').value.trim();
+        const projectId = document.getElementById('project-select').value;
+
+        if (!prompt) { alert('Please enter a prompt'); return; }
+        if (!projectId) { alert('Please select a project'); return; }
+
+        document.getElementById('output').textContent = '';
+        setRunning(true);
+
+        apiFetch('/api/execute/', {
+            method: 'POST',
+            body: JSON.stringify({ prompt: prompt, project_id: parseInt(projectId) }),
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                appendOutput('Error: ' + data.error);
+                setRunning(false);
+                return;
+            }
+
+            currentExecutionId = data.execution_id;
+            appendOutput('> Execution #' + data.execution_id + ' started\n');
+
+            // Start SSE stream
+            evtSource = new EventSource(data.stream_url);
+
+            evtSource.addEventListener('start', function(e) {
+                appendOutput('[Started] ' + e.data);
+            });
+
+            evtSource.addEventListener('output', function(e) {
+                try {
+                    const json = JSON.parse(e.data);
+                    if (json.type === 'assistant') {
+                        if (json.message && json.message.content) {
+                            for (const block of json.message.content) {
+                                if (block.type === 'text' && block.text) {
+                                    appendOutput(block.text);
+                                }
+                            }
+                        }
+                    } else if (json.type === 'result') {
+                        if (json.result) appendOutput('\n' + json.result);
+                    }
+                } catch {
+                    appendOutput(e.data);
+                }
+            });
+
+            evtSource.addEventListener('error', function(e) {
+                if (e.data) appendOutput('[Error] ' + e.data);
+            });
+
+            evtSource.addEventListener('done', function(e) {
+                try {
+                    const info = JSON.parse(e.data);
+                    appendOutput('\n[Done] Exit: ' + info.exit_code + ', Duration: ' + (info.duration_ms / 1000).toFixed(1) + 's');
+                } catch {
+                    appendOutput('\n[Done] ' + e.data);
+                }
+                evtSource.close();
+                evtSource = null;
+                currentExecutionId = null;
+                setRunning(false);
+            });
+
+            evtSource.onerror = function() {
+                evtSource.close();
+                evtSource = null;
+                appendOutput('\n[Connection closed]');
+                setRunning(false);
+            };
+        })
+        .catch(err => {
+            appendOutput('Error: ' + err);
+            setRunning(false);
+        });
+    };
+
+    window.cancelExecution = function() {
+        if (currentExecutionId) {
+            apiFetch('/api/execute/' + currentExecutionId + '/cancel/', { method: 'POST' })
+            .then(() => {
+                appendOutput('\n[Cancelled]');
+                if (evtSource) { evtSource.close(); evtSource = null; }
+                setRunning(false);
+                currentExecutionId = null;
+            });
+        }
+    };
+
+    // Enter key to execute (on mobile this is convenient)
+    document.getElementById('prompt-input').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && e.ctrlKey) {
+            e.preventDefault();
+            startExecution();
+        }
+    });
+})();
+</script>
+{% endblock %}
