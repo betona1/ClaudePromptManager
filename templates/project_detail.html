@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }}{% endblock %}
+
+{% block content %}
+<!-- Project Header -->
+<div class="project-header">
+    <div class="project-header-top">
+        <div style="flex:1;">
+            <h1 class="editable-cell" data-field="name" data-id="{{ project.id }}" data-endpoint="/api/projects/">{{ project.name }}</h1>
+            {% if project.path %}<div class="path">{{ project.path }}</div>{% endif %}
+            <div class="desc editable-cell" data-field="description" data-id="{{ project.id }}" data-endpoint="/api/projects/" data-multiline="true">{{ project.description|default:"" }}</div>
+        </div>
+        <div class="project-header-links">
+            <div class="editable-cell" data-field="url" data-id="{{ project.id }}" data-endpoint="/api/projects/" title="Dev URL">{% if project.url %}{{ project.url }}{% else %}Click to set URL{% endif %}</div>
+            <div class="editable-cell" data-field="deploy_url" data-id="{{ project.id }}" data-endpoint="/api/projects/" title="Deploy URL">{% if project.deploy_url %}{{ project.deploy_url }}{% else %}Click to set Deploy URL{% endif %}</div>
+            <div class="editable-cell" data-field="server_info" data-id="{{ project.id }}" data-endpoint="/api/projects/" title="Server Info">{% if project.server_info %}{{ project.server_info }}{% else %}Click to set Server{% endif %}</div>
+            <a href="{% url 'export' %}?project={{ project.name }}" class="text-xs link">Export JSON</a>
+        </div>
+    </div>
+    <div class="project-header-stats">
+        <span class="project-header-days">{{ working_days }}<span>days</span></span>
+        {% if total_tokens %}<span class="project-header-tokens">{{ tokens_display }}<span>tokens</span></span>{% endif %}
+        <span>{{ total }} prompts</span>
+        <span>{% if first_at %}{{ first_at|date:"m/d" }} ~ {{ last_at|date:"m/d" }}{% endif %}</span>
+    </div>
+</div>
+
+<!-- MD Docs -->
+{% if md_files %}
+<div class="md-files-bar">
+    {% for md in md_files %}
+    <a href="{% url 'project-md' project.id md.name %}" class="md-file-chip">{{ md.name }}</a>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Search within project -->
+<form method="GET" class="project-search-form">
+    {% if current_source %}<input type="hidden" name="source" value="{{ current_source }}">{% endif %}
+    <input type="text" name="q" value="{{ current_q }}" placeholder="Search prompts in {{ project.name }}...">
+    <button type="submit">Search</button>
+    {% if current_q %}
+    <a href="{% url 'project-detail' project.id %}" class="search-clear">Clear</a>
+    {% endif %}
+</form>
+
+<!-- Filters -->
+<div class="filters">
+    <a href="{% url 'project-detail' project.id %}{% if current_q %}?q={{ current_q }}{% endif %}"
+       class="filter-pill {% if not current_source %}active all{% endif %}">All</a>
+    <a href="?source=hook{% if current_q %}&q={{ current_q }}{% endif %}" class="filter-pill {% if current_source == 'hook' %}active hook{% endif %}">Hook</a>
+    <a href="?source=import{% if current_q %}&q={{ current_q }}{% endif %}" class="filter-pill {% if current_source == 'import' %}active import{% endif %}">Import</a>
+</div>
+
+{% if current_q %}
+<div class="search-result-info">"{{ current_q }}" 검색 결과: {{ prompt_count }}건</div>
+{% endif %}
+
+<!-- Prompt Table -->
+<div class="prompt-table">
+    <div class="prompt-table-header prompt-table-header-2col">
+        <div class="pt-col-id">#</div>
+        <div class="pt-col-content-main">Prompt</div>
+        <div class="pt-col-response-main">Response</div>
+        <div class="pt-col-date">
+            {% if sort == 'asc' %}
+            <a href="?sort=desc{% if current_source %}&source={{ current_source }}{% endif %}{% if current_q %}&q={{ current_q }}{% endif %}" class="sort-link">Date &#9650;</a>
+            {% else %}
+            <a href="?sort=asc{% if current_source %}&source={{ current_source }}{% endif %}{% if current_q %}&q={{ current_q }}{% endif %}" class="sort-link">Date &#9660;</a>
+            {% endif %}
+        </div>
+    </div>
+    {% for pr in prompts %}
+    <a href="{% url 'prompt-detail' pr.id %}" class="prompt-table-row prompt-table-row-2col">
+        <div class="pt-col-id">{{ pr.id }}</div>
+        <div class="pt-col-content-main">
+            <div class="pt-prompt-text">{{ pr.content|truncatechars:200 }}</div>
+            {% if pr.source == 'hook' %}<span class="source-hook text-xs">hook</span>{% endif %}
+        </div>
+        <div class="pt-col-response-main">
+            {% if pr.response_summary %}
+            <div class="pt-response-text-visible">{{ pr.response_summary|truncatechars:150 }}</div>
+            {% else %}
+            <span class="text-light">—</span>
+            {% endif %}
+        </div>
+        <div class="pt-col-date">{{ pr.created_at|date:"m/d H:i" }}</div>
+    </a>
+    {% empty %}
+    <div class="empty-state mt-2">No prompts matching the filter.</div>
+    {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<div class="pagination">
+    {% if page > 1 %}
+    <a href="?page={{ page|add:"-1" }}{% if sort %}&sort={{ sort }}{% endif %}{% if current_source %}&source={{ current_source }}{% endif %}{% if current_q %}&q={{ current_q }}{% endif %}">Prev</a>
+    {% endif %}
+    <span>{{ page }} / {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a href="?page={{ page|add:"1" }}{% if sort %}&sort={{ sort }}{% endif %}{% if current_source %}&source={{ current_source }}{% endif %}{% if current_q %}&q={{ current_q }}{% endif %}">Next</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

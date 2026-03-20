@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+db.sqlite3
+static/screenshots/
+.claude/
+.DS_Store
+*.secret_key
+*.egg-info/
+dist/
+build/

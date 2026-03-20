@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Prompt #{{ prompt.id }}{% endblock %}
+
+{% block content %}
+<a href="javascript:history.back()" class="back-link">&larr; Back</a>
+
+<div class="detail-card">
+    <!-- Header -->
+    <div class="detail-header">
+        <div class="detail-header-left">
+            <span class="detail-id">#{{ prompt.id }}</span>
+            {% if prompt.tag %}<span class="tag-label">#{{ prompt.tag }}</span>{% endif %}
+            <span class="badge {% if prompt.source == 'hook' %}badge-hook{% elif prompt.source == 'import' %}badge-import{% else %}badge-manual{% endif %}">{{ prompt.source }}</span>
+        </div>
+        <div class="text-sm text-light">{{ prompt.created_at|date:"Y-m-d H:i:s" }}</div>
+    </div>
+
+    <!-- Meta -->
+    <div class="detail-meta">
+        <div class="detail-meta-grid">
+            <div>
+                <span class="detail-meta-label">Project:</span>
+                <a href="{% url 'project-detail' prompt.project.id %}" class="link">{{ prompt.project.name }}</a>
+            </div>
+            {% if prompt.terminal %}
+            <div>
+                <span class="detail-meta-label">Terminal:</span>
+                {{ prompt.terminal.name }}
+            </div>
+            {% endif %}
+            {% if prompt.session_id %}
+            <div>
+                <span class="detail-meta-label">Session:</span>
+                <span class="font-mono text-xs">{{ prompt.session_id|truncatechars:20 }}</span>
+            </div>
+            {% endif %}
+            {% if prompt.parent %}
+            <div>
+                <span class="detail-meta-label">Parent:</span>
+                <a href="{% url 'prompt-detail' prompt.parent.id %}" class="link">#{{ prompt.parent.id }}</a>
+            </div>
+            {% endif %}
+            {% if prompt.duration_ms %}
+            <div>
+                <span class="detail-meta-label">Duration:</span>
+                {{ prompt.duration_ms }}ms
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Content -->
+    <div class="detail-section">
+        <div class="detail-section-title">Prompt</div>
+        <pre class="detail-pre prompt">{{ prompt.content }}</pre>
+    </div>
+
+    <!-- Response -->
+    {% if prompt.response_summary %}
+    <div class="detail-section">
+        <div class="detail-section-title">Response Summary</div>
+        <pre class="detail-pre response">{{ prompt.response_summary }}</pre>
+    </div>
+    {% endif %}
+
+    <!-- Note -->
+    {% if prompt.note %}
+    <div class="detail-section">
+        <div class="detail-section-title">Note</div>
+        <div class="detail-note">{{ prompt.note }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Children -->
+    {% if children %}
+    <div class="detail-section">
+        <div class="detail-section-title">Follow-up Prompts</div>
+        {% for child in children %}
+        <a href="{% url 'prompt-detail' child.id %}" class="prompt-item" style="margin-bottom:8px;">
+            <div class="prompt-meta">
+                <span class="prompt-id">#{{ child.id }}</span>
+            </div>
+            <div class="text-sm truncate">{{ child.content|truncatechars:150 }}</div>
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Footer -->
+    <div class="detail-footer">Updated: {{ prompt.updated_at|date:"Y-m-d H:i:s" }}</div>
+</div>
+{% endblock %}

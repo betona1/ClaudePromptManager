@@ -1,0 +1,41 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Claude Prompt Manager{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <nav>
+        <div class="nav-inner">
+            <div class="nav-left">
+                <a href="{% url 'dashboard' %}" class="logo">Claude <span>Prompt Manager</span></a>
+                <a href="{% url 'dashboard' %}" {% if request.path == '/' %}class="active"{% endif %}>Dashboard</a>
+                <a href="{% url 'project-list' %}" {% if '/projects' in request.path %}class="active"{% endif %}>Projects</a>
+                <a href="{% url 'prompt-list' %}" {% if '/prompts' in request.path %}class="active"{% endif %}>Prompts</a>
+            </div>
+            <div class="nav-right">
+                <form action="{% url 'search' %}" method="GET">
+                    <input type="text" name="q" placeholder="Search prompts..." value="{{ q|default:'' }}" class="search-input">
+                </form>
+                <a href="{% url 'export' %}" class="nav-link-sm">Export</a>
+                <a href="/api/" class="nav-link-sm">API</a>
+            </div>
+        </div>
+    </nav>
+
+    {% csrf_token %}
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>Claude Prompt Manager</footer>
+
+    <script src="{% static 'js/cpm.js' %}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

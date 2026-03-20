@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="grid grid-4 mb-4">
+    <div class="stat-card default">
+        <div class="stat-num">{{ total }}</div>
+        <div class="stat-label">Total Prompts</div>
+    </div>
+    <div class="stat-card blue">
+        <div class="stat-num">{{ projects|length }}</div>
+        <div class="stat-label">Projects</div>
+    </div>
+    <div class="stat-card default">
+        <div class="stat-num">{{ total_days }}</div>
+        <div class="stat-label">Working Days</div>
+    </div>
+    <div class="stat-card green">
+        <div class="stat-num">{{ total_tokens_display }}</div>
+        <div class="stat-label">Total Tokens</div>
+    </div>
+</div>
+
+<!-- Project Memo Cards -->
+<div class="section-title mb-2">Projects</div>
+<div class="project-cards-grid">
+    {% for p in projects %}
+    <a href="{% url 'project-detail' p.id %}" class="memo-card {% if p.prompt_count > 500 %}memo-hot{% elif p.prompt_count > 100 %}memo-warm{% endif %}">
+        {% if p.screenshot %}
+        <div class="memo-card-screenshot">
+            <img src="{% static p.screenshot %}" alt="{{ p.name }}">
+        </div>
+        {% endif %}
+        <div class="memo-card-top">
+            <div class="memo-card-days">{{ p.working_days }}<span>days</span></div>
+            {% if p.total_tokens %}<div class="memo-card-tokens">{{ p.tokens_display }}<span>tokens</span></div>{% endif %}
+        </div>
+        <div class="memo-card-header">
+            <div class="memo-card-name">{{ p.name }}</div>
+            <div class="memo-card-badge">{{ p.prompt_count }}</div>
+        </div>
+        {% if p.server_info %}
+        <div class="memo-card-server">{{ p.server_info }}</div>
+        {% endif %}
+        {% if p.description %}
+        <div class="memo-card-desc">{{ p.description }}</div>
+        {% endif %}
+        <div class="memo-card-footer">
+            <div class="memo-card-period">
+                {% if p.first_at %}{{ p.first_at|date:"m/d" }} ~ {{ p.last_at|date:"m/d" }}{% endif %}
+            </div>
+            <div class="memo-card-links">
+                {% if p.url %}<span class="memo-link dev" title="{{ p.url }}">Dev</span>{% endif %}
+                {% if p.deploy_url %}<span class="memo-link prod" title="{{ p.deploy_url }}">Prod</span>{% endif %}
+            </div>
+        </div>
+    </a>
+    {% empty %}
+    <div class="empty-state" style="grid-column:1/-1;">
+        No projects yet. Run <code>python3 manage.py cpm_setup</code> then use Claude Code.
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Service Ports -->
+{% if services %}
+<div class="service-section-header mt-6">
+    <div class="section-title" style="margin:0">Service Ports <span class="text-light text-xs">({{ services|length }})</span></div>
+    <button id="btn-discover" class="btn-sm btn-blue" onclick="discoverServices()">Auto-Discover</button>
+</div>
+<div style="overflow-x:auto; margin-bottom:24px;">
+<table class="service-table">
+    <thead>
+        <tr>
+            <th>Server</th>
+            <th>IP</th>
+            <th>Port</th>
+            <th>Service</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Project</th>
+            <th>Remarks</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for s in services %}
+        <tr>
+            <td>{{ s.server_name }}</td>
+            <td class="font-mono">{{ s.ip }}</td>
+            <td class="font-mono font-bold">{{ s.port }}</td>
+            <td>{{ s.service_name }}</td>
+            <td><span class="badge badge-{{ s.service_type }}">{{ s.get_service_type_display }}</span></td>
+            <td><span class="status-dot {{ s.status }}"></span>{{ s.get_status_display }}</td>
+            <td>{% if s.project %}<a href="{% url 'project-detail' s.project.id %}" class="link">{{ s.project.name }}</a>{% else %}<span class="text-light">—</span>{% endif %}</td>
+            <td class="editable-cell" data-field="remarks" data-id="{{ s.id }}" data-endpoint="/api/services/">{{ s.remarks|default:"" }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endif %}
+
+<!-- Recent Prompts -->
+<div style="display:flex; justify-content:space-between; align-items:center;" class="mt-6 mb-2">
+    <div class="section-title" style="margin:0">Recent Prompts</div>
+    <a href="{% url 'prompt-list' %}" class="text-xs link">View all &rarr;</a>
+</div>
+{% for pr in recent_prompts %}
+<a href="{% url 'prompt-detail' pr.id %}" class="prompt-item">
+    <div class="prompt-row">
+        <div class="prompt-body">
+            <div class="prompt-meta">
+                <span class="project-name">{{ pr.project.name }}</span>
+                {% if pr.source == 'hook' %}<span class="source-hook text-xs">hook</span>{% endif %}
+            </div>
+            <div class="prompt-content">{{ pr.content|truncatechars:200 }}</div>
+            {% if pr.response_summary %}
+            <div class="prompt-response">{{ pr.response_summary|truncatechars:100 }}</div>
+            {% endif %}
+        </div>
+        <div class="prompt-time">{{ pr.created_at|date:"m/d H:i" }}</div>
+    </div>
+</a>
+{% empty %}
+<div class="empty-state">No prompts yet.</div>
+{% endfor %}
+{% endblock %}

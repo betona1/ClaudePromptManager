@@ -1,0 +1,141 @@
+"""
+CPM Hooks — shared utilities for DB access and Redis publish.
+Used by on_prompt.py and on_stop.py.
+"""
+import os
+import sys
+import sqlite3
+import json
+from pathlib import Path
+from datetime import datetime
+
+
+def get_db_path() -> Path:
+    if sys.platform == 'win32':
+        base = Path(os.environ.get('APPDATA', Path.home() / 'AppData' / 'Roaming'))
+    else:
+        base = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share'))
+    return base / 'cpm' / 'cpm.db'
+
+
+def get_db() -> sqlite3.Connection:
+    db_path = get_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(db_path), timeout=10)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    return conn
+
+
+def ensure_tables(conn: sqlite3.Connection):
+    """Ensure v2 tables exist (safe to call repeatedly)."""
+    conn.executescript("""
+    CREATE TABLE IF NOT EXISTS projects (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        path TEXT,
+        description TEXT,
+        created_at TEXT DEFAULT (datetime('now','localtime')),
+        updated_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS prompts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        terminal_id INTEGER,
+        content TEXT NOT NULL,
+        response_summary TEXT,
+        status TEXT DEFAULT 'wip' CHECK(status IN ('wip','success','fail')),
+        tag TEXT,
+        note TEXT,
+        parent_id INTEGER,
+        created_at TEXT DEFAULT (datetime('now','localtime')),
+        updated_at TEXT DEFAULT (datetime('now','localtime')),
+        session_id TEXT,
+        source TEXT DEFAULT 'manual',
+        duration_ms INTEGER,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (parent_id) REFERENCES prompts(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+        id TEXT PRIMARY KEY,
+        project_id INTEGER,
+        terminal_id INTEGER,
+        project_path TEXT,
+        started_at TEXT,
+        ended_at TEXT,
+        message_count INTEGER DEFAULT 0,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+    );
+    """)
+    # Add v2 columns if missing (for existing v1 DBs)
+    for col, default in [('session_id', None), ('source', "'manual'"), ('duration_ms', None)]:
+        try:
+            conn.execute(f"ALTER TABLE prompts ADD COLUMN {col} TEXT"
+                        if default is None
+                        else f"ALTER TABLE prompts ADD COLUMN {col} TEXT DEFAULT {default}")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+    conn.commit()
+
+
+def resolve_project_by_path(conn: sqlite3.Connection, cwd: str) -> int:
+    """Find or create a project matching the given cwd path."""
+    # Exact match first
+    row = conn.execute("SELECT id FROM projects WHERE path=?", (cwd,)).fetchone()
+    if row:
+        return row['id']
+
+    # Check if cwd is a subdirectory of a known project
+    rows = conn.execute("SELECT id, path FROM projects WHERE path IS NOT NULL").fetchall()
+    for r in rows:
+        if r['path'] and cwd.startswith(r['path']):
+            return r['id']
+
+    # Auto-create project from directory name
+    name = Path(cwd).name
+    # Ensure unique name
+    base_name = name
+    counter = 1
+    while True:
+        existing = conn.execute("SELECT id FROM projects WHERE name=?", (name,)).fetchone()
+        if not existing:
+            break
+        name = f"{base_name}-{counter}"
+        counter += 1
+
+    conn.execute(
+        "INSERT INTO projects (name, path, description) VALUES (?, ?, ?)",
+        (name, cwd, f"Auto-detected from {cwd}")
+    )
+    conn.commit()
+    row = conn.execute("SELECT id FROM projects WHERE name=?", (name,)).fetchone()
+    return row['id']
+
+
+def ensure_session(conn: sqlite3.Connection, session_id: str, project_id: int, cwd: str):
+    """Create or update session record."""
+    row = conn.execute("SELECT id FROM sessions WHERE id=?", (session_id,)).fetchone()
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    if not row:
+        conn.execute(
+            "INSERT INTO sessions (id, project_id, project_path, started_at, message_count) VALUES (?, ?, ?, ?, 0)",
+            (session_id, project_id, cwd, now)
+        )
+    conn.execute(
+        "UPDATE sessions SET message_count = message_count + 1 WHERE id=?",
+        (session_id,)
+    )
+    conn.commit()
+
+
+def redis_publish(channel: str, data: dict):
+    """Publish to Redis if available. Silently skip if Redis is not running."""
+    try:
+        import redis
+        r = redis.Redis(host='localhost', port=6379, db=0, socket_connect_timeout=1)
+        r.publish(channel, json.dumps(data, ensure_ascii=False))
+    except Exception:
+        pass  # Redis is optional

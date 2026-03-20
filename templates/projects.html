@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Projects{% endblock %}
+
+{% block content %}
+<div class="page-title">Projects</div>
+
+<div class="project-cards-grid">
+    {% for p in projects %}
+    <a href="{% url 'project-detail' p.id %}" class="memo-card {% if p.prompt_count > 500 %}memo-hot{% elif p.prompt_count > 100 %}memo-warm{% endif %}">
+        {% if p.screenshot %}
+        <div class="memo-card-screenshot">
+            <img src="{% static p.screenshot %}" alt="{{ p.name }}">
+        </div>
+        {% endif %}
+        <div class="memo-card-top">
+            <div class="memo-card-days">{{ p.working_days }}<span>days</span></div>
+            {% if p.total_tokens %}<div class="memo-card-tokens">{{ p.tokens_display }}<span>tokens</span></div>{% endif %}
+        </div>
+        <div class="memo-card-header">
+            <div class="memo-card-name">{{ p.name }}</div>
+            <div class="memo-card-badge">{{ p.prompt_count }}</div>
+        </div>
+        {% if p.server_info %}
+        <div class="memo-card-server">{{ p.server_info }}</div>
+        {% endif %}
+        {% if p.description %}
+        <div class="memo-card-desc">{{ p.description }}</div>
+        {% endif %}
+        <div class="memo-card-footer">
+            <div class="memo-card-period">
+                {% if p.first_at %}{{ p.first_at|date:"m/d" }} ~ {{ p.last_at|date:"m/d" }}{% endif %}
+            </div>
+            <div class="memo-card-links">
+                {% if p.url %}<span class="memo-link dev" title="{{ p.url }}">Dev</span>{% endif %}
+                {% if p.deploy_url %}<span class="memo-link prod" title="{{ p.deploy_url }}">Prod</span>{% endif %}
+            </div>
+        </div>
+    </a>
+    {% empty %}
+    <div class="empty-state" style="grid-column:1/-1;">No projects yet.</div>
+    {% endfor %}
+</div>
+{% endblock %}

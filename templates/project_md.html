@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{{ filename }} — {{ project.name }}{% endblock %}
+
+{% block content %}
+<a href="{% url 'project-detail' project.id %}" class="back-link">&larr; {{ project.name }}</a>
+
+<div class="md-viewer">
+    <div class="md-viewer-header">
+        <div class="md-viewer-title">{{ filename }}</div>
+        <div class="md-viewer-meta">{{ project.name }}{% if project.path %} &middot; {{ project.path }}/{{ filename }}{% endif %}</div>
+    </div>
+    {% if error %}
+    <div class="md-viewer-body">
+        <div class="empty-state">{{ error }}</div>
+    </div>
+    {% else %}
+    <div class="md-viewer-body">
+        <pre class="md-content">{{ content }}</pre>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

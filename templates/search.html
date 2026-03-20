@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Search{% endblock %}
+
+{% block content %}
+<div class="page-title">Search Prompts</div>
+
+<form method="GET" class="search-form">
+    <input type="text" name="q" value="{{ q }}" placeholder="Search prompt content, responses, notes...">
+    <button type="submit">Search</button>
+</form>
+
+{% if q %}
+<div class="text-sm text-muted mb-4">{{ count }} results for "{{ q }}"</div>
+
+{% for pr in results %}
+<a href="{% url 'prompt-detail' pr.id %}" class="prompt-item">
+    <div class="prompt-row">
+        <div class="prompt-body">
+            <div class="prompt-meta">
+                <span class="prompt-id">#{{ pr.id }}</span>
+                <span class="badge {% if pr.status == 'success' %}badge-success{% elif pr.status == 'fail' %}badge-fail{% else %}badge-wip{% endif %}">{{ pr.status }}</span>
+                <span class="project-name">{{ pr.project.name }}</span>
+            </div>
+            <div class="prompt-content" style="-webkit-line-clamp:3;">{{ pr.content|truncatechars:400 }}</div>
+            {% if pr.response_summary %}
+            <div class="prompt-response">{{ pr.response_summary|truncatechars:120 }}</div>
+            {% endif %}
+        </div>
+        <div class="prompt-time">{{ pr.created_at|date:"m/d H:i" }}</div>
+    </div>
+</a>
+{% empty %}
+<div class="empty-state">No results found.</div>
+{% endfor %}
+{% endif %}
+{% endblock %}
