@@ -21,7 +21,7 @@ import os
 
 # Add parent directory to path for shared import
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from shared import get_db, ensure_tables, resolve_project_by_path, ensure_session, redis_publish
+from shared import get_db, ensure_tables, resolve_project_by_path, ensure_session, auto_detect_github_url, redis_publish
 
 
 def main():
@@ -45,6 +45,7 @@ def main():
         ensure_tables(conn)
 
         project_id = resolve_project_by_path(conn, cwd)
+        auto_detect_github_url(conn, project_id, cwd)
         ensure_session(conn, session_id, project_id, cwd)
 
         cursor = conn.execute(

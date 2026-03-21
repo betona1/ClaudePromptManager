@@ -1,11 +1,12 @@
 import json
 import os
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
+from django.conf import settings
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, HttpResponse
 from django.db.models import Count, Q, Max, Min, Sum
-from .models import Project, Terminal, Prompt, Template, Session, ServicePort, Execution
+from .models import Project, ProjectScreenshot, Terminal, Prompt, Template, Session, ServicePort, Execution
 
 
 def _format_tokens(n):
@@ -18,7 +19,8 @@ def _format_tokens(n):
 
 
 def _attach_working_days(projects):
-    """Attach working_days, first_at, last_at, tokens_display to each project."""
+    """Attach working_days, first_at, last_at, tokens_display, today_count to each project."""
+    today = date.today()
     for p in projects:
         dates = Prompt.objects.filter(project_id=p.id).dates('created_at', 'day')
         p.working_days = len(dates)
@@ -29,14 +31,18 @@ def _attach_working_days(projects):
         p.last_at = r['last_at']
         p.total_tokens = p.total_input_tokens + p.total_output_tokens
         p.tokens_display = _format_tokens(p.total_tokens)
+        p.today_count = Prompt.objects.filter(project_id=p.id, created_at__date=today).count()
 
 
 def dashboard(request):
     """Main dashboard with overview stats."""
-    projects = Project.objects.annotate(
+    projects = Project.objects.prefetch_related('screenshots').annotate(
         prompt_count=Count('prompts'),
         latest_at=Max('prompts__created_at'),
-    ).order_by('-latest_at')
+        hook_prompt_count=Count('prompts', filter=Q(prompts__source__in=['hook', 'import'])),
+        todo_total=Count('todos'),
+        todo_completed=Count('todos', filter=Q(todos__is_completed=True)),
+    ).order_by('-favorited', '-latest_at')
 
     total = Prompt.objects.count()
 
@@ -56,6 +62,10 @@ def dashboard(request):
 
     services = ServicePort.objects.select_related('project').all()
 
+    # Today's prompts
+    today = date.today()
+    today_count = Prompt.objects.filter(created_at__date=today).count()
+
     context = {
         'projects': projects,
         'total': total,
@@ -63,6 +73,7 @@ def dashboard(request):
         'total_tokens': total_tokens,
         'total_tokens_display': _format_tokens(total_tokens),
         'recent_prompts': recent_prompts,
+        'today_count': today_count,
         'hook_count': Prompt.objects.filter(source='hook').count(),
         'import_count': Prompt.objects.filter(source='import').count(),
         'services': services,
@@ -71,7 +82,7 @@ def dashboard(request):
 
 
 def project_list(request):
-    projects = Project.objects.annotate(
+    projects = Project.objects.prefetch_related('screenshots').annotate(
         prompt_count=Count('prompts'),
         latest_at=Max('prompts__created_at'),
     ).order_by('-latest_at')
@@ -132,6 +143,9 @@ def project_detail(request, pk):
         for f in sorted(Path(project.path).glob('*.md')):
             md_files.append({'name': f.name, 'size': f.stat().st_size})
 
+    # Screenshots
+    screenshots = project.screenshots.all()
+
     context = {
         'project': project,
         'prompts': prompts_page,
@@ -150,6 +164,7 @@ def project_detail(request, pk):
         'current_q': q,
         'sort': sort,
         'md_files': md_files,
+        'screenshots': screenshots,
     }
     return render(request, 'project_detail.html', context)
 
@@ -301,6 +316,96 @@ def export_view(request):
 
     filename = f'cpm_export_{project_name or "all"}_{datetime.now().strftime("%Y%m%d")}.json'
     response = HttpResponse(content, content_type='application/json')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+def setup_guide(request):
+    """Setup guide page for remote hooks (Windows etc.) + GitHub sync."""
+    host = request.get_host()
+    scheme = 'https' if request.is_secure() else 'http'
+    server_url = f'{scheme}://{host}'
+    return render(request, 'setup.html', {'server_url': server_url})
+
+
+def download_hook(request, filename):
+    """Download hook files as zip or individual file."""
+    import zipfile
+    import io
+
+    host = request.get_host()
+    scheme = 'https' if request.is_secure() else 'http'
+    server_url = f'{scheme}://{host}'
+
+    if filename == 'cpm-hooks.zip':
+        # Build zip with both hook files + settings.json template
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for fname in ['on_prompt_remote.py', 'on_stop_remote.py', 'import_history.py']:
+                hook_path = Path(settings.BASE_DIR) / 'hooks' / fname
+                if hook_path.exists():
+                    content = hook_path.read_text(encoding='utf-8')
+                    content = content.replace(
+                        "CPM_SERVER = os.environ.get('CPM_SERVER', 'http://localhost:9200')",
+                        f"CPM_SERVER = os.environ.get('CPM_SERVER', '{server_url}')"
+                    )
+                    zf.writestr(f'cpm/{fname}', content)
+
+            # Include a ready-to-use settings.json
+            settings_json = json.dumps({
+                "hooks": {
+                    "UserPromptSubmit": [{
+                        "type": "command",
+                        "command": "python C:\\cpm\\on_prompt_remote.py"
+                    }],
+                    "Stop": [{
+                        "type": "command",
+                        "command": "python C:\\cpm\\on_stop_remote.py"
+                    }]
+                }
+            }, indent=2, ensure_ascii=False)
+            zf.writestr('cpm/settings.json', settings_json)
+
+            # README
+            readme = f"""CPM Remote Hooks
+================
+
+1. cpm 폴더를 C:\\ 에 복사  ->  C:\\cpm\\
+2. settings.json 을 %USERPROFILE%\\.claude\\ 에 복사
+   (Windows Terminal에서 실행하는 Claude Code CLI 설정 위치)
+3. Claude Code 재시작하면 자동 기록!
+
+기존 기록 가져오기:
+  python C:\\cpm\\import_history.py
+
+서버: {server_url}
+
+* Python이 설치되어 있어야 합니다.
+* 이미 settings.json이 있으면 hooks 부분만 합쳐주세요.
+"""
+            zf.writestr('cpm/README.txt', readme)
+
+        buf.seek(0)
+        response = HttpResponse(buf.read(), content_type='application/zip')
+        response['Content-Disposition'] = 'attachment; filename="cpm-hooks.zip"'
+        return response
+
+    # Single file download (fallback)
+    allowed = {'on_prompt_remote.py', 'on_stop_remote.py'}
+    if filename not in allowed:
+        return HttpResponse('Not found', status=404)
+
+    hook_path = Path(settings.BASE_DIR) / 'hooks' / filename
+    if not hook_path.exists():
+        return HttpResponse('File not found', status=404)
+
+    content = hook_path.read_text(encoding='utf-8')
+    content = content.replace(
+        "CPM_SERVER = os.environ.get('CPM_SERVER', 'http://localhost:9200')",
+        f"CPM_SERVER = os.environ.get('CPM_SERVER', '{server_url}')"
+    )
+
+    response = HttpResponse(content, content_type='text/plain; charset=utf-8')
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
 

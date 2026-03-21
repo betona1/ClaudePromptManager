@@ -17,6 +17,7 @@
                 <a href="{% url 'project-list' %}" {% if '/projects' in request.path %}class="active"{% endif %}>Projects</a>
                 <a href="{% url 'prompt-list' %}" {% if '/prompts' in request.path %}class="active"{% endif %}>Prompts</a>
                 <a href="{% url 'remote-execute' %}" {% if '/remote' in request.path %}class="active"{% endif %}>Remote</a>
+                <a href="{% url 'setup-guide' %}" {% if '/setup' in request.path %}class="active"{% endif %}>Setup</a>
             </div>
             <div class="nav-right">
                 <form action="{% url 'search' %}" method="GET">
@@ -35,6 +36,18 @@
     </main>
 
     <footer>Claude Prompt Manager</footer>
+
+    <!-- Screenshot Preview Modal -->
+    <div id="screenshot-modal" class="screenshot-modal" style="display:none;">
+        <div class="screenshot-modal-backdrop"></div>
+        <div class="screenshot-modal-content">
+            <img id="screenshot-modal-img" src="" alt="Preview">
+            <button class="screenshot-modal-close">&times;</button>
+            <button id="screenshot-modal-prev" class="screenshot-modal-nav screenshot-modal-nav-prev" style="display:none;">&#8249;</button>
+            <button id="screenshot-modal-next" class="screenshot-modal-nav screenshot-modal-nav-next" style="display:none;">&#8250;</button>
+            <div id="screenshot-modal-counter" class="screenshot-modal-counter" style="display:none;"></div>
+        </div>
+    </div>
 
     <script src="{% static 'js/cpm.js' %}"></script>
     {% block extra_js %}{% endblock %}

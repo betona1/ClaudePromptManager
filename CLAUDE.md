@@ -50,6 +50,14 @@ cpm/
 - `sessions` — Claude Code 세션 추적
 - `tool_calls` — 도구 호출 기록 (Phase 4)
 
+## 환경 변수 (.env)
+```
+delpasswd=YOUR_PASSWORD    # 프로젝트 삭제 비밀번호 (필수)
+```
+- `.env` 파일에 `delpasswd=` 뒤에 비밀번호 입력 후 서버 재시작하면 적용
+- 대시보드에서 프로젝트 카드 hover → × 클릭 → 비밀번호 입력 → 삭제
+- 비밀번호 미설정 시 삭제 기능 비활성화
+
 ## 포트 배정
 - Django Web: **9200**
 - WebSocket: **9201** (Phase 2)

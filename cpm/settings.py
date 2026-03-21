@@ -8,6 +8,16 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Load .env file
+_env_file = BASE_DIR / '.env'
+if _env_file.exists():
+    for line in _env_file.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith('#') or '=' not in line:
+            continue
+        key, _, val = line.partition('=')
+        os.environ.setdefault(key.strip(), val.strip())
+
 # Data directory
 if sys.platform == 'win32':
     _db_base = Path(os.environ.get('APPDATA', Path.home() / 'AppData' / 'Roaming'))
@@ -111,6 +121,13 @@ REST_FRAMEWORK = {
 CPM_WEB_PORT = 9200
 CPM_WS_PORT = 9201
 CPM_HOOKS_DIR = BASE_DIR / 'hooks'
+
+# Delete password (from .env delpasswd)
+CPM_DEL_PASSWORD = os.environ.get('delpasswd', '')
+
+# GitHub integration
+GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', '')
+GITHUB_USERNAME = os.environ.get('GITHUB_USERNAME', '')
 
 # Redis (optional, for Phase 2 real-time)
 CPM_REDIS_URL = os.environ.get('CPM_REDIS_URL', 'redis://localhost:6379/0')

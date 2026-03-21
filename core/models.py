@@ -60,7 +60,9 @@ class Project(models.Model):
     url = models.URLField(blank=True, null=True, help_text='Project web URL for screenshot capture')
     deploy_url = models.URLField(blank=True, null=True, help_text='Production/deployed URL')
     server_info = models.CharField(max_length=500, blank=True, null=True, help_text='Server/host info (e.g. 100서버, 80서버, MacBook)')
+    github_url = models.URLField(blank=True, null=True, help_text='GitHub repository URL')
     screenshot = models.CharField(max_length=500, blank=True, null=True, help_text='Screenshot file path')
+    favorited = models.BooleanField(default=False, help_text='Heart-marked active project')
     # Token usage (aggregated from session files)
     total_input_tokens = models.BigIntegerField(default=0)
     total_output_tokens = models.BigIntegerField(default=0)
@@ -73,6 +75,20 @@ class Project(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ProjectScreenshot(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='screenshots')
+    filepath = models.CharField(max_length=500)
+    order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'project_screenshots'
+        ordering = ['order', 'created_at']
+
+    def __str__(self):
+        return f"{self.project.name} - {self.filepath}"
 
 
 class Terminal(models.Model):
@@ -259,3 +275,45 @@ class Execution(models.Model):
 
     def __str__(self):
         return f"Exec #{self.id} [{self.status}] {self.command[:50]}"
+
+
+TODO_CATEGORY_CHOICES = [
+    ('task', 'Task'),
+    ('deploy', 'Deploy'),
+]
+
+
+class ProjectTodo(models.Model):
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, related_name='todos'
+    )
+    title = models.CharField(max_length=500)
+    category = models.CharField(max_length=20, choices=TODO_CATEGORY_CHOICES, default='task')
+    is_completed = models.BooleanField(default=False)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    sort_order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'project_todos'
+        ordering = ['sort_order', 'created_at']
+
+    def __str__(self):
+        check = '[x]' if self.is_completed else '[ ]'
+        return f"{check} {self.title}"
+
+
+class GitHubAccount(models.Model):
+    username = models.CharField(max_length=255, unique=True)
+    token = models.CharField(max_length=255)
+    display_name = models.CharField(max_length=255, blank=True, default='')
+    avatar_url = models.URLField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'github_accounts'
+        ordering = ['username']
+
+    def __str__(self):
+        return self.username

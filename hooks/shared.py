@@ -115,6 +115,32 @@ def resolve_project_by_path(conn: sqlite3.Connection, cwd: str) -> int:
     return row['id']
 
 
+def auto_detect_github_url(conn: sqlite3.Connection, project_id: int, cwd: str):
+    """Auto-detect GitHub URL from git remote and save to project."""
+    try:
+        import subprocess
+        git_dir = os.path.join(cwd, '.git')
+        if not os.path.isdir(git_dir):
+            return
+        # Check if already set
+        row = conn.execute("SELECT github_url FROM projects WHERE id=?", (project_id,)).fetchone()
+        if row and row['github_url']:
+            return
+        url = subprocess.check_output(
+            ['git', '-C', cwd, 'remote', 'get-url', 'origin'],
+            stderr=subprocess.DEVNULL, timeout=3
+        ).decode().strip()
+        if 'github.com' in url:
+            web_url = url.replace('.git', '').replace('git@github.com:', 'https://github.com/')
+            try:
+                conn.execute("UPDATE projects SET github_url=? WHERE id=?", (web_url, project_id))
+                conn.commit()
+            except Exception:
+                pass  # github_url column may not exist in older DBs
+    except Exception:
+        pass
+
+
 def ensure_session(conn: sqlite3.Connection, session_id: str, project_id: int, cwd: str):
     """Create or update session record."""
     row = conn.execute("SELECT id FROM sessions WHERE id=?", (session_id,)).fetchone()

@@ -1,11 +1,24 @@
 from django.contrib import admin
-from .models import Project, Terminal, Prompt, Template, Session, ToolCall, ServicePort
+from .models import Project, ProjectScreenshot, ProjectTodo, Terminal, Prompt, Template, Session, ToolCall, ServicePort
 
 
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
     list_display = ['id', 'name', 'path', 'created_at', 'updated_at']
     search_fields = ['name', 'path', 'description']
+
+
+@admin.register(ProjectScreenshot)
+class ProjectScreenshotAdmin(admin.ModelAdmin):
+    list_display = ['id', 'project', 'filepath', 'order', 'created_at']
+    list_filter = ['project']
+
+
+@admin.register(ProjectTodo)
+class ProjectTodoAdmin(admin.ModelAdmin):
+    list_display = ['id', 'project', 'title', 'category', 'is_completed', 'sort_order', 'created_at']
+    list_filter = ['is_completed', 'category', 'project']
+    search_fields = ['title']
 
 
 @admin.register(Terminal)

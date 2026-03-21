@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Project, Terminal, Prompt, Template, Session, ToolCall, ServicePort
+from .models import Project, ProjectTodo, Terminal, Prompt, Template, Session, ToolCall, ServicePort
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -63,3 +63,10 @@ class ServicePortSerializer(serializers.ModelSerializer):
     class Meta:
         model = ServicePort
         fields = '__all__'
+
+
+class ProjectTodoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectTodo
+        fields = '__all__'
+        read_only_fields = ['completed_at']

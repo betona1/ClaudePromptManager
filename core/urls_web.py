@@ -11,4 +11,6 @@ urlpatterns = [
     path('search/', views_web.search, name='search'),
     path('export/', views_web.export_view, name='export'),
     path('remote/', views_web.remote_execute, name='remote-execute'),
+    path('setup/', views_web.setup_guide, name='setup-guide'),
+    path('setup/download/<str:filename>', views_web.download_hook, name='download-hook'),
 ]

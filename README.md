@@ -12,10 +12,14 @@ Claude Code hooks를 통해 프롬프트를 실시간으로 DB에 저장하고, 
 
 - **자동 프롬프트 캡처** — Claude Code hooks로 모든 프롬프트/응답 자동 저장
 - **웹 대시보드** — 프로젝트별 통계, 토큰 사용량, 작업일수 시각화
+- **프로젝트 Todo/Goals** — 프로젝트별 목표 설정 + 체크리스트 + 배포 마일스톤
+- **GitHub 연동** — 다중 GitHub 계정 레포 동기화, 프로젝트 자동 생성
+- **즐겨찾기 & 필터** — 활성 프로젝트 하트 마크, ALL/즐겨찾기 토글 필터
+- **원격 실행** — 브라우저에서 Claude Code 명령 원격 실행 (SSE 스트리밍)
 - **서비스 포트 관리** — 서버별 서비스/포트 현황 테이블 + 자동 탐색
+- **다중 서버 지원** — 원격 서버 hook으로 여러 머신의 프롬프트 통합 수집 (Windows 포함)
 - **인라인 편집** — 웹에서 더블클릭으로 모든 정보를 즉시 수정
 - **REST API** — DRF 기반 전체 CRUD API
-- **다중 서버 지원** — 원격 서버 hook으로 여러 머신의 프롬프트 통합 수집
 - **CLI 도구** — 터미널에서 대시보드, 검색, 통계 확인
 
 ---
@@ -66,6 +70,9 @@ cp .env.example .env
 | `CPM_WEB_PORT` | `9200` | 웹 서버 포트 |
 | `CPM_SERVER` | `http://localhost:9200` | 원격 hook 서버 주소 |
 | `CPM_REDIS_URL` | `redis://localhost:6379/0` | Redis URL (선택) |
+| `delpasswd` | (없음) | 프로젝트 삭제 비밀번호 |
+| `GITHUB_TOKEN` | (없음) | GitHub Personal Access Token (선택) |
+| `GITHUB_USERNAME` | (없음) | GitHub 사용자명 (선택) |
 
 ---
 
@@ -74,6 +81,46 @@ cp .env.example .env
 ### 대시보드 (`/`)
 
 전체 통계 카드(총 프롬프트, 프로젝트 수, 작업일수, 토큰 사용량)와 프로젝트 카드, 서비스 포트 테이블, 최근 프롬프트를 한눈에 확인합니다.
+
+#### 프로젝트 카드 기능
+
+- **즐겨찾기(♥)** — 카드 hover 시 하트 아이콘 표시, 클릭으로 즐겨찾기 토글
+- **필터 토글** — `ALL` / `♥` 버튼으로 전체/즐겨찾기만 보기 전환
+- **Claude Code 뱃지(✸)** — hook/import로 수집된 프롬프트가 있는 프로젝트 표시
+- **Todo 뱃지** — 보라색 `완료/전체` 진행률 표시, 클릭하면 Todo 모달 열기
+- **스크린샷 미리보기** — 카메라 아이콘 hover/클릭으로 프로젝트 스크린샷 확인
+- **프로젝트 추가(+)** — 모달로 새 프로젝트 생성
+- **프로젝트 삭제(×)** — 비밀번호 확인 후 삭제
+
+### 프로젝트 Todo/Goals
+
+프로젝트별 목표를 설정하고 진행상황을 추적합니다.
+
+1. 대시보드 카드의 보라색 뱃지 클릭 → Todo 모달 열기
+2. **Task 목표** — 상단 입력창에서 일반 목표 추가
+3. **Deploy 마일스톤** — 하단 입력창에서 배포 마일스톤 추가 (구분선으로 분리)
+4. **체크 완료** — 체크박스 클릭 시 완료 처리 + 완료 날짜 자동 기록
+5. 배포 후에도 계속 목표를 추가하여 프로젝트를 발전시킬 수 있습니다
+
+### GitHub 연동
+
+Setup 페이지(`/setup/`)에서 GitHub 계정을 연결하고 레포를 동기화합니다.
+
+1. **계정 추가** — GitHub 토큰 + 사용자명 입력 (Personal Access Token 필요)
+2. **레포 동기화** — GitHub 레포 목록과 CPM 프로젝트 비교
+   - `matched` — 이미 연결된 프로젝트
+   - `incomplete` — 빈 필드가 있는 프로젝트 (업데이트 가능)
+   - `missing` — CPM에 없는 레포 (새 프로젝트 생성)
+3. **다중 계정** — 여러 GitHub 계정을 동시에 관리
+
+### 원격 실행 (`/remote/`)
+
+브라우저에서 Claude Code 명령을 원격 실행합니다.
+
+1. 프로젝트와 작업 디렉토리 선택
+2. 명령어 입력 후 실행
+3. SSE(Server-Sent Events)로 실시간 출력 스트리밍
+4. 실행 중 취소 가능
 
 ### 인라인 편집
 
@@ -155,10 +202,19 @@ cpm export                    # JSON 내보내기
 | `/api/sessions/` | GET | Claude Code 세션 목록 |
 | `/api/templates/` | GET, POST | 프롬프트 템플릿 CRUD |
 | `/api/terminals/` | GET, POST | 터미널 CRUD |
+| `/api/projects/{id}/todos/` | GET, POST | 프로젝트 Todo 목록/추가 |
+| `/api/todos/{id}/` | PATCH, DELETE | Todo 수정/삭제 (체크 시 완료일 자동 기록) |
+| `/api/projects/{id}/favorite/` | POST | 즐겨찾기 토글 |
+| `/api/github/accounts/` | GET | GitHub 계정 목록 |
+| `/api/github/accounts/add/` | POST | GitHub 계정 추가 |
+| `/api/github/repos/` | GET | GitHub 레포 목록 + CPM 비교 |
+| `/api/github/sync/` | POST | GitHub 레포 → CPM 프로젝트 동기화 |
+| `/api/execute/` | POST | Claude Code 원격 실행 |
 | `/api/stats/` | GET | 전체 통계 |
 | `/api/discover/` | POST | 서비스 자동 탐색 |
 | `/api/hook/prompt/` | POST | 원격 hook: 프롬프트 수신 |
 | `/api/hook/stop/` | POST | 원격 hook: 응답 수신 |
+| `/api/hook/import/` | POST | 원격 hook: 기록 가져오기 |
 
 ### API 사용 예시
 
@@ -224,13 +280,17 @@ ClaudePromptManager/
 │   └── wsgi.py / asgi.py
 ├── core/                      # Django 앱
 │   ├── models.py              # ORM 모델
-│   │   ├── Project            # 프로젝트 (이름, 경로, URL, 토큰)
+│   │   ├── Project            # 프로젝트 (이름, 경로, URL, 토큰, 즐겨찾기)
+│   │   ├── ProjectTodo        # 프로젝트 목표 (체크리스트, 배포 마일스톤)
+│   │   ├── ProjectScreenshot  # 프로젝트 스크린샷
 │   │   ├── Prompt             # 프롬프트 (내용, 상태, 태그, 응답)
 │   │   ├── ServicePort        # 서비스 포트 (IP, 포트, 상태)
 │   │   ├── Session            # Claude Code 세션
 │   │   ├── Terminal           # 터미널
 │   │   ├── Template           # 프롬프트 템플릿
-│   │   └── ToolCall           # 도구 호출 기록
+│   │   ├── ToolCall           # 도구 호출 기록
+│   │   ├── Execution          # 원격 실행 기록
+│   │   └── GitHubAccount      # GitHub 계정
 │   ├── serializers.py         # DRF 직렬화
 │   ├── views_api.py           # REST API + 서비스 탐색
 │   ├── views_web.py           # 웹 페이지 뷰
@@ -269,6 +329,10 @@ SQLite (WAL 모드)를 사용하며, 데이터 파일은 아래 위치에 저장
 | `templates` | 프롬프트 템플릿 |
 | `service_ports` | 서비스 포트 (서버, IP, 포트, 상태, 타입) |
 | `tool_calls` | 도구 호출 기록 |
+| `project_todos` | 프로젝트 목표/체크리스트 |
+| `project_screenshots` | 프로젝트 스크린샷 |
+| `executions` | 원격 실행 기록 |
+| `github_accounts` | GitHub 계정 정보 |
 
 ---
 

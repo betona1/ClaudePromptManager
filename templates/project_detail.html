@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}{{ project.name }}{% endblock %}
 
 {% block content %}
@@ -11,6 +12,17 @@
             <div class="desc editable-cell" data-field="description" data-id="{{ project.id }}" data-endpoint="/api/projects/" data-multiline="true">{{ project.description|default:"" }}</div>
         </div>
         <div class="project-header-links">
+            <div class="project-header-link-row">
+                {% if project.github_url %}
+                <a href="{{ project.github_url }}" target="_blank" class="project-github-link" title="{{ project.github_url }}">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                    GitHub
+                </a>
+                {% endif %}
+                {% if project.url %}<a href="{{ project.url }}" target="_blank" class="project-env-link dev">Dev</a>{% endif %}
+                {% if project.deploy_url %}<a href="{{ project.deploy_url }}" target="_blank" class="project-env-link prod">Prod</a>{% endif %}
+            </div>
+            <div class="editable-cell" data-field="github_url" data-id="{{ project.id }}" data-endpoint="/api/projects/" title="GitHub URL">{% if project.github_url %}{{ project.github_url }}{% else %}Click to set GitHub URL{% endif %}</div>
             <div class="editable-cell" data-field="url" data-id="{{ project.id }}" data-endpoint="/api/projects/" title="Dev URL">{% if project.url %}{{ project.url }}{% else %}Click to set URL{% endif %}</div>
             <div class="editable-cell" data-field="deploy_url" data-id="{{ project.id }}" data-endpoint="/api/projects/" title="Deploy URL">{% if project.deploy_url %}{{ project.deploy_url }}{% else %}Click to set Deploy URL{% endif %}</div>
             <div class="editable-cell" data-field="server_info" data-id="{{ project.id }}" data-endpoint="/api/projects/" title="Server Info">{% if project.server_info %}{{ project.server_info }}{% else %}Click to set Server{% endif %}</div>
@@ -22,6 +34,34 @@
         {% if total_tokens %}<span class="project-header-tokens">{{ tokens_display }}<span>tokens</span></span>{% endif %}
         <span>{{ total }} prompts</span>
         <span>{% if first_at %}{{ first_at|date:"m/d" }} ~ {{ last_at|date:"m/d" }}{% endif %}</span>
+    </div>
+</div>
+
+<!-- Screenshot Gallery -->
+<div class="screenshot-section">
+    <div class="screenshot-section-title">Screenshots <span id="screenshot-count-label">({{ screenshots|length }}/100)</span></div>
+    <div class="screenshot-gallery" id="screenshot-gallery" data-project-id="{{ project.id }}">
+        {% for ss in screenshots %}
+        <div class="screenshot-thumb" data-screenshot-id="{{ ss.id }}">
+            <img src="{% static ss.filepath %}" alt="{{ project.name }}">
+            <button class="screenshot-thumb-delete" title="Delete">&times;</button>
+        </div>
+        {% endfor %}
+        {% if screenshots|length < 100 %}
+        <div class="screenshot-add-btn" id="screenshot-add-btn" title="Add screenshot">+</div>
+        {% endif %}
+    </div>
+    <div class="screenshot-upload-zone" id="screenshot-upload-zone" data-project-id="{{ project.id }}" style="display:none;">
+        <div class="upload-zone-inner" id="upload-zone-inner" tabindex="0">
+            <div class="upload-zone-hint">Click here, then Ctrl+V to paste</div>
+            <div class="upload-zone-text">or drag & drop image file</div>
+            <div class="upload-zone-ready">Ready! Press Ctrl+V to paste screenshot</div>
+            <label class="upload-file-btn">
+                Choose File
+                <input type="file" accept="image/*" id="screenshot-file-input" style="display:none;">
+            </label>
+        </div>
+        <div class="upload-progress" id="upload-progress" style="display:none;">Uploading...</div>
     </div>
 </div>
 

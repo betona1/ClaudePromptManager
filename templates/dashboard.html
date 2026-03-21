@@ -1,10 +1,14 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}Dashboard{% endblock %}
+{% block title %}Claude Prompt Manager{% endblock %}
 
 {% block content %}
 <!-- Stats -->
-<div class="grid grid-4 mb-4">
+<div class="grid grid-5 mb-4">
+    <div class="stat-card yellow">
+        <div class="stat-num">{{ today_count }}</div>
+        <div class="stat-label">Today</div>
+    </div>
     <div class="stat-card default">
         <div class="stat-num">{{ total }}</div>
         <div class="stat-label">Total Prompts</div>
@@ -23,23 +27,83 @@
     </div>
 </div>
 
+<!-- Recent Prompt Preview -->
+{% if recent_prompts %}
+<div class="recent-preview" id="recent-preview">
+    <div class="recent-preview-top" id="recent-preview-toggle">
+        {% with pr=recent_prompts.0 %}
+        <a href="{% url 'project-detail' pr.project.id %}" class="recent-preview-line">
+            <span class="recent-preview-project">{{ pr.project.name }}</span>
+            <span class="recent-preview-content">{{ pr.content|truncatechars:80 }}</span>
+            <span class="recent-preview-time">{{ pr.created_at|date:"H:i" }}</span>
+        </a>
+        {% endwith %}
+        <button class="recent-preview-arrow" id="recent-preview-arrow" title="Expand">&#9660;</button>
+    </div>
+    <div class="recent-preview-expand" id="recent-preview-expand">
+        {% for pr in recent_prompts|slice:":5" %}
+        <a href="{% url 'project-detail' pr.project.id %}" class="recent-preview-item">
+            <span class="recent-preview-project">{{ pr.project.name }}</span>
+            <span class="recent-preview-content">{{ pr.content|truncatechars:60 }}</span>
+            {% if pr.response_summary %}<span class="recent-preview-resp">{{ pr.response_summary|truncatechars:40 }}</span>{% endif %}
+            <span class="recent-preview-time">{{ pr.created_at|date:"m/d H:i" }}</span>
+        </a>
+        {% endfor %}
+        <a href="{% url 'prompt-list' %}" class="recent-preview-more">View all prompts &rarr;</a>
+    </div>
+</div>
+{% endif %}
+
 <!-- Project Memo Cards -->
-<div class="section-title mb-2">Projects</div>
+<div class="section-title mb-2" style="display:flex;align-items:center;gap:8px;">
+    Projects
+    <button class="project-filter-toggle" id="project-filter-toggle" title="Show all / favorites only">ALL</button>
+    <button class="project-add-btn" id="project-add-btn" title="Add project">+</button>
+</div>
+
+<!-- Add Project Modal -->
+<div class="project-add-modal" id="project-add-modal" style="display:none;">
+    <div class="project-add-backdrop"></div>
+    <div class="project-add-form">
+        <div class="project-add-title">New Project</div>
+        <label>Name <span class="text-red">*</span></label>
+        <input type="text" id="add-project-name" placeholder="my-project">
+        <label>Path</label>
+        <input type="text" id="add-project-path" placeholder="C:\projects\my-project or /home/user/projects/my-project">
+        <label>Description</label>
+        <input type="text" id="add-project-description" placeholder="Brief description">
+        <label>GitHub URL</label>
+        <input type="text" id="add-project-github" placeholder="https://github.com/user/repo">
+        <label>Server Info</label>
+        <input type="text" id="add-project-server" placeholder="e.g. Windows, ai100">
+        <div class="project-add-actions">
+            <button class="btn-cancel" id="project-add-cancel">Cancel</button>
+            <button class="btn-primary" id="project-add-save">Create</button>
+        </div>
+        <div class="project-add-error" id="project-add-error" style="display:none;"></div>
+    </div>
+</div>
+
 <div class="project-cards-grid">
     {% for p in projects %}
-    <a href="{% url 'project-detail' p.id %}" class="memo-card {% if p.prompt_count > 500 %}memo-hot{% elif p.prompt_count > 100 %}memo-warm{% endif %}">
-        {% if p.screenshot %}
-        <div class="memo-card-screenshot">
-            <img src="{% static p.screenshot %}" alt="{{ p.name }}">
+    <a href="{% url 'project-detail' p.id %}" class="memo-card {% if p.prompt_count > 500 %}memo-hot{% elif p.prompt_count > 100 %}memo-warm{% endif %}" data-favorited="{{ p.favorited|yesno:'true,false' }}" data-project-id="{{ p.id }}">
+        <span class="memo-card-delete" data-project-id="{{ p.id }}" data-project-name="{{ p.name }}" title="Delete project">&times;</span>
+        <span class="memo-card-heart {% if p.favorited %}active{% endif %}" data-project-id="{{ p.id }}" title="Favorite">&#9829;</span>
+        <div class="memo-card-top-icons">
+            {% if p.today_count %}<span class="memo-card-today" title="Today: {{ p.today_count }}">{{ p.today_count }}</span>{% endif %}
+            {% with first_ss=p.screenshots.all.0 %}{% if first_ss %}<span class="memo-card-img-mark" data-screenshot="/static/{{ first_ss.filepath }}" data-screenshots="{% for ss in p.screenshots.all %}/static/{{ ss.filepath }}{% if not forloop.last %}|{% endif %}{% endfor %}" title="Preview screenshot">&#128247;</span>{% endif %}{% endwith %}
         </div>
-        {% endif %}
         <div class="memo-card-top">
             <div class="memo-card-days">{{ p.working_days }}<span>days</span></div>
             {% if p.total_tokens %}<div class="memo-card-tokens">{{ p.tokens_display }}<span>tokens</span></div>{% endif %}
         </div>
         <div class="memo-card-header">
             <div class="memo-card-name">{{ p.name }}</div>
-            <div class="memo-card-badge">{{ p.prompt_count }}</div>
+            <div class="memo-card-badges">
+                {% if p.hook_prompt_count %}<span class="memo-card-claude-badge" title="Claude Code ({{ p.hook_prompt_count }})">&#10040;</span>{% endif %}
+                <span class="memo-card-todo-badge" data-project-id="{{ p.id }}" data-project-name="{{ p.name }}" title="Goals: {{ p.todo_completed }}/{{ p.todo_total }}">{% if p.todo_total %}<span class="todo-progress">{{ p.todo_completed }}/{{ p.todo_total }}</span>{% else %}<span class="todo-progress-empty">&#9744;</span>{% endif %}</span>
+                <div class="memo-card-badge">{{ p.prompt_count }}</div>
+            </div>
         </div>
         {% if p.server_info %}
         <div class="memo-card-server">{{ p.server_info }}</div>
@@ -52,6 +116,7 @@
                 {% if p.first_at %}{{ p.first_at|date:"m/d" }} ~ {{ p.last_at|date:"m/d" }}{% endif %}
             </div>
             <div class="memo-card-links">
+                {% if p.github_url %}<span class="memo-link github" title="{{ p.github_url }}" data-href="{{ p.github_url }}"><svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span>{% endif %}
                 {% if p.url %}<span class="memo-link dev" title="{{ p.url }}">Dev</span>{% endif %}
                 {% if p.deploy_url %}<span class="memo-link prod" title="{{ p.deploy_url }}">Prod</span>{% endif %}
             </div>
@@ -62,6 +127,36 @@
         No projects yet. Run <code>python3 manage.py cpm_setup</code> then use Claude Code.
     </div>
     {% endfor %}
+</div>
+
+<!-- Todo Modal -->
+<div class="todo-modal" id="todo-modal" style="display:none;">
+    <div class="todo-modal-backdrop"></div>
+    <div class="todo-modal-body">
+        <div class="todo-modal-header">
+            <h2 id="todo-modal-title">Project Goals</h2>
+            <button class="todo-modal-close" id="todo-modal-close">&times;</button>
+        </div>
+        <div class="todo-modal-subtitle">프로젝트에 적용하고 싶은 목표를 설정하세요</div>
+        <div class="todo-modal-content">
+            <div class="todo-add-row">
+                <input type="text" id="todo-add-input" placeholder="새 목표 추가..." maxlength="500">
+                <button class="btn-sm btn-blue" id="todo-add-btn">Add</button>
+            </div>
+            <div class="todo-list" id="todo-list"></div>
+            <div class="todo-deploy-divider" id="todo-deploy-divider" style="display:none;">
+                <span>Deploy / Milestone</span>
+            </div>
+            <div class="todo-deploy-list" id="todo-deploy-list"></div>
+            <div class="todo-add-deploy-row">
+                <input type="text" id="todo-add-deploy-input" placeholder="배포 마일스톤 추가..." maxlength="500">
+                <button class="btn-sm btn-blue" id="todo-add-deploy-btn">Add</button>
+            </div>
+        </div>
+        <div class="todo-modal-footer">
+            <span class="todo-modal-progress" id="todo-modal-progress"></span>
+        </div>
+    </div>
 </div>
 
 <!-- Service Ports -->
@@ -101,29 +196,4 @@
 </table>
 </div>
 {% endif %}
-
-<!-- Recent Prompts -->
-<div style="display:flex; justify-content:space-between; align-items:center;" class="mt-6 mb-2">
-    <div class="section-title" style="margin:0">Recent Prompts</div>
-    <a href="{% url 'prompt-list' %}" class="text-xs link">View all &rarr;</a>
-</div>
-{% for pr in recent_prompts %}
-<a href="{% url 'prompt-detail' pr.id %}" class="prompt-item">
-    <div class="prompt-row">
-        <div class="prompt-body">
-            <div class="prompt-meta">
-                <span class="project-name">{{ pr.project.name }}</span>
-                {% if pr.source == 'hook' %}<span class="source-hook text-xs">hook</span>{% endif %}
-            </div>
-            <div class="prompt-content">{{ pr.content|truncatechars:200 }}</div>
-            {% if pr.response_summary %}
-            <div class="prompt-response">{{ pr.response_summary|truncatechars:100 }}</div>
-            {% endif %}
-        </div>
-        <div class="prompt-time">{{ pr.created_at|date:"m/d H:i" }}</div>
-    </div>
-</a>
-{% empty %}
-<div class="empty-state">No prompts yet.</div>
-{% endfor %}
 {% endblock %}

@@ -111,22 +111,7 @@
             });
 
             evtSource.addEventListener('output', function(e) {
-                try {
-                    const json = JSON.parse(e.data);
-                    if (json.type === 'assistant') {
-                        if (json.message && json.message.content) {
-                            for (const block of json.message.content) {
-                                if (block.type === 'text' && block.text) {
-                                    appendOutput(block.text);
-                                }
-                            }
-                        }
-                    } else if (json.type === 'result') {
-                        if (json.result) appendOutput('\n' + json.result);
-                    }
-                } catch {
-                    appendOutput(e.data);
-                }
+                appendOutput(e.data);
             });
 
             evtSource.addEventListener('error', function(e) {

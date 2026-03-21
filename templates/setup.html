@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% block title %}Setup{% endblock %}
+
+{% block content %}
+<div class="setup-page">
+    <h1 class="setup-title">Setup</h1>
+    <p class="setup-desc">GitHub 연동 및 원격 PC 설정</p>
+
+    <!-- GitHub 계정 목록 -->
+    <div class="setup-section" id="github-accounts-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h2 style="margin-bottom: 0;">GitHub 연동</h2>
+            <button class="gh-add-btn" id="gh-add-btn" title="계정 추가">+</button>
+        </div>
+
+        <!-- 계정 추가 폼 (토글) -->
+        <div id="gh-add-form" class="gh-add-form" style="display:none;">
+            <div class="github-token-row">
+                <div class="github-token-field">
+                    <label for="gh-add-token">Token</label>
+                    <div style="display:flex; gap:6px; align-items:center;">
+                        <input type="password" id="gh-add-token" placeholder="ghp_xxxxxxxxxxxx">
+                        <button type="button" class="btn-help-sm" id="github-token-help-btn" title="토큰 만드는 방법">?</button>
+                    </div>
+                </div>
+                <div class="github-token-field">
+                    <label for="gh-add-username">Username</label>
+                    <input type="text" id="gh-add-username" placeholder="username">
+                </div>
+                <button class="btn-sm btn-blue" id="gh-add-save" style="align-self: flex-end;">추가</button>
+                <button class="btn-sm btn-cancel-sm" id="gh-add-cancel" style="align-self: flex-end;">취소</button>
+            </div>
+            <div id="gh-add-status" class="github-token-status" style="display:none;"></div>
+        </div>
+
+        <!-- 계정 카드 목록 -->
+        <div id="gh-accounts-list"></div>
+        <div id="gh-accounts-empty" class="text-sm text-light" style="text-align:center; padding: 20px; display:none;">
+            등록된 GitHub 계정이 없습니다. [+] 버튼으로 추가하세요.
+        </div>
+    </div>
+
+    <!-- Sync 영역 (계정 선택 후 표시) -->
+    <div class="setup-section" id="github-sync-section" style="display:none;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+            <h2 style="margin-bottom: 0;">Sync</h2>
+            <span id="gh-sync-account-label" class="badge badge-blue"></span>
+            <span id="github-sync-status" class="text-sm text-light"></span>
+        </div>
+
+        <div id="github-sync-table-wrap" style="display:none;">
+            <div class="github-sync-controls">
+                <label class="text-sm"><input type="checkbox" id="github-check-all" checked> 전체 선택</label>
+                <label class="text-sm" style="margin-left: 12px;"><input type="checkbox" id="github-hide-matched"> 매칭 숨기기</label>
+                <label class="text-sm" style="margin-left: 12px;"><input type="checkbox" id="github-hide-forks"> 포크 숨기기</label>
+            </div>
+            <div class="github-sync-table" id="github-sync-table"></div>
+            <div style="margin-top: 12px; display: flex; gap: 8px; align-items: center;">
+                <button class="btn-sm btn-blue" id="github-do-sync-btn">선택항목 동기화</button>
+                <span id="github-do-sync-status" class="text-sm text-light"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- GitHub 토큰 만들기 (버튼으로 팝업) -->
+    <div class="setup-section">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin-bottom: 0;">GitHub 토큰 만들기</h2>
+            <button class="btn-sm btn-blue" id="token-guide-open-btn">가이드 보기</button>
+        </div>
+        <p class="text-sm text-light" style="margin-top: 6px;">Personal Access Token 발급 방법을 안내합니다.</p>
+    </div>
+
+    <!-- 원격 PC 연동 (버튼으로 팝업) -->
+    <div class="setup-section">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin-bottom: 0;">원격 PC 연동</h2>
+            <button class="btn-sm btn-blue" id="remote-guide-open-btn">가이드 보기</button>
+        </div>
+        <p class="text-sm text-light" style="margin-top: 6px;">윈도우 등 다른 PC에서 Claude Code 쓰면 이 서버에 자동 기록됩니다.</p>
+    </div>
+</div>
+
+<!-- 원격 PC 연동 가이드 팝업 -->
+<div class="guide-modal" id="remote-guide-modal" style="display:none;">
+    <div class="guide-modal-backdrop"></div>
+    <div class="guide-modal-body">
+        <div class="guide-modal-header">
+            <h2>원격 PC 연동 가이드</h2>
+            <button class="guide-modal-close">&times;</button>
+        </div>
+        <div class="guide-modal-content">
+            <div class="guide-step">
+                <div class="setup-step">1</div>
+                <div>
+                    <h3>다운로드</h3>
+                    <a href="{% url 'download-hook' 'cpm-hooks.zip' %}" class="setup-zip-btn">
+                        <span class="setup-zip-icon">&#128230;</span>
+                        <span>
+                            <strong>cpm-hooks.zip</strong>
+                            <span class="setup-zip-sub">서버 주소 자동 설정됨</span>
+                        </span>
+                    </a>
+                </div>
+            </div>
+            <div class="guide-step">
+                <div class="setup-step">2</div>
+                <div>
+                    <h3>압축 풀기</h3>
+                    <p><code class="setup-path-highlight">C:\</code> 에 풀면 <code class="setup-path-highlight">C:\cpm\</code> 폴더가 생깁니다.</p>
+                    <div class="setup-file-tree">
+                        <div class="setup-file-folder">C:\cpm\</div>
+                        <div class="setup-file-item">on_prompt_remote.py</div>
+                        <div class="setup-file-item">on_stop_remote.py</div>
+                        <div class="setup-file-item setup-file-highlight">settings.json</div>
+                        <div class="setup-file-item setup-file-dim">README.txt</div>
+                    </div>
+                </div>
+            </div>
+            <div class="guide-step">
+                <div class="setup-step">3</div>
+                <div>
+                    <h3>hooks 설정</h3>
+                    <p class="text-sm text-light">위치: <code>%USERPROFILE%\.claude\settings.json</code></p>
+                    <div class="setup-case">
+                        <div class="setup-case-label new">settings.json 없는 경우</div>
+                        <p><code class="setup-path-highlight">C:\cpm\settings.json</code> 을 <code class="setup-path-highlight">%USERPROFILE%\.claude\</code> 에 그대로 복사</p>
+                    </div>
+                    <div class="setup-case">
+                        <div class="setup-case-label existing">이미 settings.json 있는 경우</div>
+                        <p>기존 파일 열고 <code>"hooks"</code> 부분만 추가:</p>
+                        <div class="setup-code-block">
+<code id="hooks-only">"hooks": {
+  "UserPromptSubmit": [
+    {
+      "type": "command",
+      "command": "python C:\\cpm\\on_prompt_remote.py"
+    }
+  ],
+  "Stop": [
+    {
+      "type": "command",
+      "command": "python C:\\cpm\\on_stop_remote.py"
+    }
+  ]
+}</code>
+                            <button class="setup-copy-btn" data-target="hooks-only" title="Copy">&#128203;</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="guide-step">
+                <div class="setup-step">4</div>
+                <div>
+                    <h3>기존 기록 가져오기</h3>
+                    <p>이전 기록이 있으면 한 번만 실행:</p>
+                    <div class="setup-code-block">
+                        <code id="import-cmd">python C:\cpm\import_history.py</code>
+                        <button class="setup-copy-btn" data-target="import-cmd" title="Copy">&#128203;</button>
+                    </div>
+                    <p class="text-sm text-light">중복은 자동 건너뜁니다.</p>
+                </div>
+            </div>
+            <div class="guide-done">
+                Claude Code 재시작하면 자동 기록. 서버: <strong>{{ server_url }}</strong>
+            </div>
+            <div class="guide-trouble">
+                <strong>안 되면?</strong>
+                <ul class="setup-checklist">
+                    <li>Python 설치 확인 — <code>python --version</code></li>
+                    <li>서버 접속 확인 — <a href="{{ server_url }}" target="_blank">{{ server_url }}</a></li>
+                    <li>경로 확인 — <code>C:\cpm\on_prompt_remote.py</code></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- GitHub 토큰 만들기 가이드 팝업 -->
+<div class="guide-modal" id="token-guide-modal" style="display:none;">
+    <div class="guide-modal-backdrop"></div>
+    <div class="guide-modal-body">
+        <div class="guide-modal-header">
+            <h2>GitHub Personal Access Token 만들기</h2>
+            <button class="guide-modal-close">&times;</button>
+        </div>
+        <div class="guide-modal-content">
+            <div class="guide-step">
+                <div class="setup-step">1</div>
+                <div>
+                    <h3>GitHub Settings 이동</h3>
+                    <p>GitHub 로그인 &rarr; 우측 상단 프로필 아이콘 &rarr; <strong>Settings</strong></p>
+                </div>
+            </div>
+            <div class="guide-step">
+                <div class="setup-step">2</div>
+                <div>
+                    <h3>Developer settings</h3>
+                    <p>왼쪽 사이드바 맨 아래 <strong>Developer settings</strong> 클릭</p>
+                </div>
+            </div>
+            <div class="guide-step">
+                <div class="setup-step">3</div>
+                <div>
+                    <h3>토큰 생성</h3>
+                    <p><strong>Personal access tokens</strong> &rarr; <strong>Tokens (classic)</strong> &rarr; <strong>Generate new token (classic)</strong></p>
+                    <div class="guide-note">
+                        Fine-grained token도 가능하지만 classic이 간편합니다.
+                    </div>
+                </div>
+            </div>
+            <div class="guide-step">
+                <div class="setup-step">4</div>
+                <div>
+                    <h3>설정</h3>
+                    <ul class="guide-config-list">
+                        <li><strong>Note:</strong> <code>CPM Sync</code> (용도 메모)</li>
+                        <li><strong>Expiration:</strong> 원하는 기간 (또는 No expiration)</li>
+                        <li><strong>Scopes:</strong> <code class="guide-scope">repo</code> 체크 (레포 읽기용)</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="guide-step">
+                <div class="setup-step">5</div>
+                <div>
+                    <h3>토큰 복사</h3>
+                    <p><strong>Generate token</strong> 클릭 &rarr; <code class="setup-path-highlight">ghp_</code> 로 시작하는 토큰을 복사</p>
+                    <div class="guide-note guide-note-warn">
+                        이 페이지를 떠나면 토큰을 다시 볼 수 없습니다. 바로 위 Token 필드에 붙여넣기 하세요.
+                    </div>
+                </div>
+            </div>
+            <div class="guide-done">
+                <a href="https://github.com/settings/tokens/new" target="_blank" class="btn-sm btn-blue" style="text-decoration:none;">GitHub 토큰 생성 페이지 열기 &rarr;</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Copy buttons
+document.querySelectorAll('.setup-copy-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var target = document.getElementById(btn.dataset.target);
+        if (!target) return;
+        navigator.clipboard.writeText(target.textContent.trim()).then(function() {
+            btn.textContent = '\u2713';
+            setTimeout(function() { btn.innerHTML = '&#128203;'; }, 1500);
+        });
+    });
+});
+
+// Generic modal open/close
+function setupModal(openBtnId, modalId) {
+    var openBtn = document.getElementById(openBtnId);
+    var modal = document.getElementById(modalId);
+    if (!openBtn || !modal) return;
+    var backdrop = modal.querySelector('.guide-modal-backdrop');
+    var closeBtn = modal.querySelector('.guide-modal-close');
+
+    function open() { modal.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
+    function close() { modal.style.display = 'none'; document.body.style.overflow = ''; }
+
+    openBtn.addEventListener('click', open);
+    backdrop.addEventListener('click', close);
+    closeBtn.addEventListener('click', close);
+    modal.addEventListener('keydown', function(e) { if (e.key === 'Escape') close(); });
+}
+
+setupModal('remote-guide-open-btn', 'remote-guide-modal');
+setupModal('token-guide-open-btn', 'token-guide-modal');
+setupModal('github-token-help-btn', 'token-guide-modal');
+</script>
+<script src="/static/js/github-sync.js"></script>
+{% endblock %}

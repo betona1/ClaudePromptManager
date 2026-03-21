@@ -33,7 +33,7 @@ def execute_claude(execution_id, prompt_text, cwd, timeout=None):
     cmd = [
         CLAUDE_BINARY,
         '-p', prompt_text,
-        '--output-format', 'stream-json',
+        '--output-format', 'text',
     ]
 
     try:
