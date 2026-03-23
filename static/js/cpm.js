@@ -415,7 +415,7 @@
         });
     })();
 
-    // Heart (favorite) toggle
+    // Heart (favorite) toggle — dashboard cards
     document.addEventListener('click', function(e) {
         var heart = e.target.closest('.memo-card-heart');
         if (!heart) return;
@@ -432,8 +432,26 @@
                 heart.classList.toggle('active', data.favorited);
                 var card = heart.closest('.memo-card');
                 if (card) card.dataset.favorited = data.favorited ? 'true' : 'false';
-                // Re-apply filter if in fav mode
                 applyProjectFilter();
+            }
+        });
+    });
+
+    // Heart (favorite) toggle — project detail page
+    document.addEventListener('click', function(e) {
+        var heart = e.target.closest('.project-detail-heart');
+        if (!heart) return;
+        e.preventDefault();
+        e.stopPropagation();
+        var projectId = heart.dataset.projectId;
+
+        apiFetch('/api/projects/' + projectId + '/favorite/', {
+            method: 'POST',
+            body: JSON.stringify({}),
+        }).then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'ok') {
+                heart.classList.toggle('active', data.favorited);
             }
         });
     });

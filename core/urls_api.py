@@ -31,5 +31,11 @@ urlpatterns = [
     path('execute/list/', views_api.execution_list, name='api-execution-list'),
     path('execute/<int:execution_id>/stream/', views_api.execution_stream, name='api-execution-stream'),
     path('execute/<int:execution_id>/cancel/', views_api.cancel_execution_view, name='api-execution-cancel'),
+    path('telegram/bots/', views_api.telegram_bots_list, name='api-telegram-bots'),
+    path('telegram/bots/add/', views_api.telegram_bots_add, name='api-telegram-bots-add'),
+    path('telegram/bots/<int:pk>/delete/', views_api.telegram_bots_delete, name='api-telegram-bots-delete'),
+    path('telegram/bots/<int:pk>/test/', views_api.telegram_bot_test, name='api-telegram-bot-test'),
+    path('telegram/bots/<int:pk>/chat-ids/add/', views_api.telegram_chat_id_add, name='api-telegram-chat-id-add'),
+    path('telegram/chat-ids/<int:pk>/delete/', views_api.telegram_chat_id_delete, name='api-telegram-chat-id-delete'),
     path('', include(router.urls)),
 ]

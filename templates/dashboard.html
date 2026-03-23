@@ -5,10 +5,10 @@
 {% block content %}
 <!-- Stats -->
 <div class="grid grid-5 mb-4">
-    <div class="stat-card yellow">
+    <a href="{% url 'statistics' %}" class="stat-card yellow stat-card-link">
         <div class="stat-num">{{ today_count }}</div>
         <div class="stat-label">Today</div>
-    </div>
+    </a>
     <div class="stat-card default">
         <div class="stat-num">{{ total }}</div>
         <div class="stat-label">Total Prompts</div>
@@ -111,6 +111,19 @@
         {% if p.description %}
         <div class="memo-card-desc">{{ p.description }}</div>
         {% endif %}
+        {% with card_todos=p.todos.all %}
+        {% if card_todos %}
+        <div class="memo-card-todos">
+            {% for t in card_todos|slice:":5" %}
+            <div class="memo-card-todo-item {% if t.is_completed %}completed{% endif %}">
+                <span class="memo-card-todo-check">{% if t.is_completed %}&#9745;{% else %}&#9744;{% endif %}</span>
+                <span class="memo-card-todo-text">{{ t.title|truncatechars:30 }}</span>
+            </div>
+            {% endfor %}
+            {% if card_todos|length > 5 %}<div class="memo-card-todo-more">+{{ card_todos|length|add:"-5" }} more</div>{% endif %}
+        </div>
+        {% endif %}
+        {% endwith %}
         <div class="memo-card-footer">
             <div class="memo-card-period">
                 {% if p.first_at %}{{ p.first_at|date:"m/d" }} ~ {{ p.last_at|date:"m/d" }}{% endif %}
@@ -119,6 +132,7 @@
                 {% if p.github_url %}<span class="memo-link github" title="{{ p.github_url }}" data-href="{{ p.github_url }}"><svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span>{% endif %}
                 {% if p.url %}<span class="memo-link dev" title="{{ p.url }}">Dev</span>{% endif %}
                 {% if p.deploy_url %}<span class="memo-link prod" title="{{ p.deploy_url }}">Prod</span>{% endif %}
+                {% if p.has_docker %}<span class="memo-link docker" title="Docker deployed">&#128674;</span>{% endif %}
             </div>
         </div>
     </a>
@@ -127,36 +141,6 @@
         No projects yet. Run <code>python3 manage.py cpm_setup</code> then use Claude Code.
     </div>
     {% endfor %}
-</div>
-
-<!-- Todo Modal -->
-<div class="todo-modal" id="todo-modal" style="display:none;">
-    <div class="todo-modal-backdrop"></div>
-    <div class="todo-modal-body">
-        <div class="todo-modal-header">
-            <h2 id="todo-modal-title">Project Goals</h2>
-            <button class="todo-modal-close" id="todo-modal-close">&times;</button>
-        </div>
-        <div class="todo-modal-subtitle">프로젝트에 적용하고 싶은 목표를 설정하세요</div>
-        <div class="todo-modal-content">
-            <div class="todo-add-row">
-                <input type="text" id="todo-add-input" placeholder="새 목표 추가..." maxlength="500">
-                <button class="btn-sm btn-blue" id="todo-add-btn">Add</button>
-            </div>
-            <div class="todo-list" id="todo-list"></div>
-            <div class="todo-deploy-divider" id="todo-deploy-divider" style="display:none;">
-                <span>Deploy / Milestone</span>
-            </div>
-            <div class="todo-deploy-list" id="todo-deploy-list"></div>
-            <div class="todo-add-deploy-row">
-                <input type="text" id="todo-add-deploy-input" placeholder="배포 마일스톤 추가..." maxlength="500">
-                <button class="btn-sm btn-blue" id="todo-add-deploy-btn">Add</button>
-            </div>
-        </div>
-        <div class="todo-modal-footer">
-            <span class="todo-modal-progress" id="todo-modal-progress"></span>
-        </div>
-    </div>
 </div>
 
 <!-- Service Ports -->
@@ -174,6 +158,7 @@
             <th>Port</th>
             <th>Service</th>
             <th>Type</th>
+            <th>Docker</th>
             <th>Status</th>
             <th>Project</th>
             <th>Remarks</th>
@@ -187,6 +172,7 @@
             <td class="font-mono font-bold">{{ s.port }}</td>
             <td>{{ s.service_name }}</td>
             <td><span class="badge badge-{{ s.service_type }}">{{ s.get_service_type_display }}</span></td>
+            <td>{% if s.is_docker %}<span class="docker-badge" title="{{ s.docker_container }}">&#128674; {{ s.docker_image|truncatechars:30 }}</span>{% else %}<span class="text-light">—</span>{% endif %}</td>
             <td><span class="status-dot {{ s.status }}"></span>{{ s.get_status_display }}</td>
             <td>{% if s.project %}<a href="{% url 'project-detail' s.project.id %}" class="link">{{ s.project.name }}</a>{% else %}<span class="text-light">—</span>{% endif %}</td>
             <td class="editable-cell" data-field="remarks" data-id="{{ s.id }}" data-endpoint="/api/services/">{{ s.remarks|default:"" }}</td>

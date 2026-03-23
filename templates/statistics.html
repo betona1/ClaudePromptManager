@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Statistics — CPM{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<!-- Mode Tabs + Date Navigation -->
+<div class="stats-header">
+    <div class="stats-tabs">
+        <a href="?mode=daily&date={{ base_date }}" class="stats-tab {% if mode == 'daily' %}active{% endif %}">Daily</a>
+        <a href="?mode=weekly&date={{ base_date }}" class="stats-tab {% if mode == 'weekly' %}active{% endif %}">Weekly</a>
+        <a href="?mode=monthly&date={{ base_date }}" class="stats-tab {% if mode == 'monthly' %}active{% endif %}">Monthly</a>
+    </div>
+    <div class="stats-date-nav">
+        <a href="?mode={{ mode }}&date={{ prev_date }}" class="stats-nav-btn" title="Previous">&larr;</a>
+        <span class="stats-date-label">{{ date_label }}</span>
+        <a href="?mode={{ mode }}&date={{ next_date }}" class="stats-nav-btn" title="Next">&rarr;</a>
+        <a href="?mode={{ mode }}" class="stats-today-btn">Today</a>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="grid grid-4 mb-4">
+    <div class="stat-card blue">
+        <div class="stat-num">{{ total_count }}</div>
+        <div class="stat-label">Prompts</div>
+    </div>
+    <div class="stat-card green">
+        <div class="stat-num">{{ success_rate }}%</div>
+        <div class="stat-label">Success Rate</div>
+    </div>
+    <div class="stat-card yellow">
+        <div class="stat-num">{{ avg_per_day }}</div>
+        <div class="stat-label">Avg / Day</div>
+    </div>
+    <div class="stat-card default">
+        <div class="stat-num">{{ active_days }}</div>
+        <div class="stat-label">Active Days</div>
+    </div>
+</div>
+
+<!-- Charts Row 1 -->
+<div class="stats-charts-row">
+    <div class="stats-chart-card stats-chart-wide">
+        <div class="stats-chart-title">Activity</div>
+        <canvas id="chart-activity"></canvas>
+    </div>
+    <div class="stats-chart-card stats-chart-narrow">
+        <div class="stats-chart-title">Status</div>
+        <canvas id="chart-status"></canvas>
+    </div>
+</div>
+
+<!-- Charts Row 2 -->
+<div class="stats-charts-row">
+    <div class="stats-chart-card stats-chart-half">
+        <div class="stats-chart-title">Tags</div>
+        <canvas id="chart-tags"></canvas>
+    </div>
+    <div class="stats-chart-card stats-chart-half">
+        <div class="stats-chart-title">Projects</div>
+        <canvas id="chart-projects"></canvas>
+    </div>
+</div>
+
+<!-- Recent Prompts Table -->
+{% if recent_prompts %}
+<div class="stats-recent">
+    <div class="section-title mb-2">Recent Prompts</div>
+    <div class="prompt-table">
+        <div class="prompt-table-header-all">
+            <div>#</div>
+            <div>Project</div>
+            <div>Content</div>
+            <div>Response</div>
+            <div>Time</div>
+        </div>
+        {% for pr in recent_prompts %}
+        <a href="{% url 'prompt-detail' pr.id %}" class="prompt-table-row-all" style="text-decoration:none;color:inherit;">
+            <div class="pt-col-id">{{ pr.id }}</div>
+            <div class="pt-col-project">{% if pr.project %}{{ pr.project.name }}{% endif %}</div>
+            <div class="pt-col-content-main"><div class="pt-prompt-text">{{ pr.content|truncatechars:80 }}</div></div>
+            <div class="pt-col-response-main"><div class="pt-response-text-visible">{{ pr.response_summary|default:""|truncatechars:60 }}</div></div>
+            <div class="pt-col-date">{{ pr.created_at|date:"m/d H:i" }}</div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const data = {{ chart_data|safe }};
+    const colors = {
+        blue: '#3b82f6',
+        green: '#22c55e',
+        red: '#ef4444',
+        yellow: '#eab308',
+        purple: '#8b5cf6',
+        orange: '#f97316',
+        pink: '#ec4899',
+        teal: '#14b8a6',
+        indigo: '#6366f1',
+        cyan: '#06b6d4',
+    };
+    const palette = [colors.blue, colors.green, colors.orange, colors.purple, colors.pink, colors.teal, colors.indigo, colors.cyan, colors.yellow, colors.red];
+
+    const commonOpts = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false },
+        },
+    };
+
+    // 1. Activity bar chart
+    new Chart(document.getElementById('chart-activity'), {
+        type: 'bar',
+        data: {
+            labels: data.activity.labels,
+            datasets: [{
+                data: data.activity.data,
+                backgroundColor: 'rgba(59,130,246,0.6)',
+                borderColor: '#3b82f6',
+                borderWidth: 1,
+                borderRadius: 3,
+            }],
+        },
+        options: {
+            ...commonOpts,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 1, font: { size: 11 } },
+                    grid: { color: 'rgba(0,0,0,0.04)' },
+                },
+                x: {
+                    ticks: { font: { size: 10 }, maxRotation: 45 },
+                    grid: { display: false },
+                },
+            },
+        },
+    });
+
+    // 2. Status doughnut
+    new Chart(document.getElementById('chart-status'), {
+        type: 'doughnut',
+        data: {
+            labels: data.status.labels,
+            datasets: [{
+                data: data.status.data,
+                backgroundColor: [colors.green, colors.red, colors.yellow],
+                borderWidth: 2,
+                borderColor: '#fff',
+            }],
+        },
+        options: {
+            ...commonOpts,
+            cutout: '55%',
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'bottom',
+                    labels: { font: { size: 12 }, padding: 12, usePointStyle: true, pointStyle: 'circle' },
+                },
+            },
+        },
+    });
+
+    // 3. Tags horizontal bar
+    new Chart(document.getElementById('chart-tags'), {
+        type: 'bar',
+        data: {
+            labels: data.tags.labels,
+            datasets: [{
+                data: data.tags.data,
+                backgroundColor: palette.slice(0, data.tags.labels.length),
+                borderRadius: 4,
+            }],
+        },
+        options: {
+            ...commonOpts,
+            indexAxis: 'y',
+            scales: {
+                x: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.04)' } },
+                y: { ticks: { font: { size: 12 } }, grid: { display: false } },
+            },
+        },
+    });
+
+    // 4. Projects horizontal bar
+    new Chart(document.getElementById('chart-projects'), {
+        type: 'bar',
+        data: {
+            labels: data.projects.labels,
+            datasets: [{
+                data: data.projects.data,
+                backgroundColor: palette.slice(0, data.projects.labels.length),
+                borderRadius: 4,
+            }],
+        },
+        options: {
+            ...commonOpts,
+            indexAxis: 'y',
+            scales: {
+                x: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.04)' } },
+                y: { ticks: { font: { size: 12 } }, grid: { display: false } },
+            },
+        },
+    });
+})();
+</script>
+{% endblock %}

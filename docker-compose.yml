@@ -1,0 +1,24 @@
+services:
+  cpm:
+    build: .
+    container_name: cpm
+    ports:
+      - "9200:9200"
+    volumes:
+      - cpm-data:/data
+      - cpm-screenshots:/app/static/screenshots
+    environment:
+      - CPM_DATA_DIR=/data
+      - CPM_DEBUG=${CPM_DEBUG:-false}
+      - CPM_SECRET_KEY=${CPM_SECRET_KEY:-}
+      - CPM_ALLOWED_HOSTS=${CPM_ALLOWED_HOSTS:-*}
+      - delpasswd=${delpasswd:-}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - GITHUB_USERNAME=${GITHUB_USERNAME:-}
+      - GUNICORN_WORKERS=${GUNICORN_WORKERS:-2}
+      - GUNICORN_THREADS=${GUNICORN_THREADS:-2}
+    restart: unless-stopped
+
+volumes:
+  cpm-data:
+  cpm-screenshots:

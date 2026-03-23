@@ -17,7 +17,7 @@ from django.views.decorators.http import require_POST
 from rest_framework import viewsets, filters
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.response import Response
-from .models import Project, ProjectScreenshot, ProjectTodo, Terminal, Prompt, Template, Session, ServicePort, Execution, GitHubAccount
+from .models import Project, ProjectScreenshot, ProjectTodo, Terminal, Prompt, Template, Session, ServicePort, Execution, GitHubAccount, TelegramBot, TelegramChatId
 from .serializers import (
     ProjectSerializer, ProjectTodoSerializer, TerminalSerializer,
     PromptSerializer, PromptDetailSerializer, TemplateSerializer,
@@ -386,12 +386,58 @@ def discover_services(request):
 
     results['open'].sort()
     results['closed'].sort()
+
+    # Docker auto-detect: match running containers to open ports
+    docker_matched = []
+    try:
+        docker_out = subprocess.run(
+            ['docker', 'ps', '--format', '{{json .}}'],
+            capture_output=True, text=True, timeout=10
+        )
+        if docker_out.returncode == 0 and docker_out.stdout.strip():
+            for line in docker_out.stdout.strip().split('\n'):
+                try:
+                    container = json.loads(line)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+                ports_str = container.get('Ports', '')
+                image = container.get('Image', '')
+                name = container.get('Names', '')
+                # Parse port mappings like "0.0.0.0:8000->8000/tcp, :::8000->8000/tcp"
+                for part in ports_str.split(','):
+                    part = part.strip()
+                    if '->' in part:
+                        host_part = part.split('->')[0]
+                        # Extract host port (e.g. "0.0.0.0:8000" -> 8000)
+                        if ':' in host_part:
+                            try:
+                                mapped_port = int(host_part.rsplit(':', 1)[1])
+                            except (ValueError, IndexError):
+                                continue
+                            # Update matching ServicePort records
+                            updated = ServicePort.objects.filter(
+                                ip=host, port=mapped_port
+                            ).update(
+                                is_docker=True,
+                                docker_image=image[:500],
+                                docker_container=name[:255],
+                            )
+                            if updated:
+                                docker_matched.append({
+                                    'port': mapped_port,
+                                    'image': image,
+                                    'container': name,
+                                })
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass  # Docker not installed or not responding
+
     return Response({
         'status': 'ok',
         'host': host,
         'open_count': len(results['open']),
         'open_ports': results['open'],
         'linked': results['linked'],
+        'docker_matched': docker_matched,
     })
 
 
@@ -1014,3 +1060,176 @@ def delete_screenshot(request, pk):
     project.save(update_fields=['screenshot', 'updated_at'])
 
     return JsonResponse({'status': 'ok', 'count': project.screenshots.count()})
+
+
+# ── Telegram Bot ───────────────────────────────────────────────
+
+def _telegram_api(method, token, data=None):
+    """Call Telegram Bot API."""
+    url = f'https://api.telegram.org/bot{token}/{method}'
+    if data:
+        payload = json.dumps(data).encode('utf-8')
+        req = urllib.request.Request(url, data=payload, headers={
+            'Content-Type': 'application/json',
+        })
+    else:
+        req = urllib.request.Request(url)
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read().decode())
+
+
+@api_view(['GET'])
+def telegram_bots_list(request):
+    """List all Telegram bots (token masked) with chat IDs."""
+    bots = TelegramBot.objects.prefetch_related('chat_ids').all()
+    data = [{
+        'id': b.id,
+        'bot_username': b.bot_username,
+        'bot_name': b.bot_name,
+        'chat_id': b.chat_id,
+        'chat_ids': [{'id': c.id, 'chat_id': c.chat_id, 'label': c.label} for c in b.chat_ids.all()],
+        'is_active': b.is_active,
+        'token_masked': b.bot_token[:8] + '...' + b.bot_token[-4:] if len(b.bot_token) > 12 else '***',
+        'created_at': b.created_at.isoformat() if b.created_at else None,
+    } for b in bots]
+    return Response({'bots': data})
+
+
+@api_view(['POST'])
+def telegram_bots_add(request):
+    """Add a Telegram bot. Validates token with Telegram getMe API."""
+    token = request.data.get('token', '').strip()
+    chat_id = request.data.get('chat_id', '').strip()
+
+    if not token or not chat_id:
+        return Response({'error': 'token and chat_id are required'}, status=400)
+
+    if TelegramBot.objects.filter(bot_token=token).exists():
+        return Response({'error': 'This bot is already registered'}, status=400)
+
+    # Validate token with Telegram API
+    try:
+        result = _telegram_api('getMe', token)
+    except urllib.error.HTTPError as e:
+        return Response({'error': f'Telegram API error: {e.code}'}, status=400)
+    except Exception as e:
+        return Response({'error': f'Connection error: {str(e)}'}, status=400)
+
+    if not result.get('ok'):
+        return Response({'error': 'Invalid bot token'}, status=400)
+
+    bot_info = result.get('result', {})
+    bot = TelegramBot.objects.create(
+        bot_token=token,
+        bot_username=bot_info.get('username', ''),
+        bot_name=bot_info.get('first_name', '') or '',
+        chat_id=chat_id,
+    )
+
+    # Also create TelegramChatId record
+    TelegramChatId.objects.get_or_create(bot=bot, chat_id=chat_id)
+
+    return Response({
+        'status': 'ok',
+        'id': bot.id,
+        'bot_username': bot.bot_username,
+        'bot_name': bot.bot_name,
+        'chat_id': bot.chat_id,
+    })
+
+
+@api_view(['POST'])
+def telegram_bots_delete(request, pk):
+    """Delete a Telegram bot. Requires delete password."""
+    password = request.data.get('password', '')
+    del_password = settings.CPM_DEL_PASSWORD
+
+    if not del_password:
+        return Response({'error': 'Delete password not configured (set delpasswd in .env)'}, status=403)
+    if password != del_password:
+        return Response({'error': 'Incorrect password'}, status=403)
+
+    try:
+        bot = TelegramBot.objects.get(pk=pk)
+    except TelegramBot.DoesNotExist:
+        return Response({'error': 'Bot not found'}, status=404)
+
+    name = bot.bot_username
+    bot.delete()
+    return Response({'status': 'ok', 'deleted': name})
+
+
+@api_view(['POST'])
+def telegram_bot_test(request, pk):
+    """Send a test message via Telegram bot to all chat IDs."""
+    try:
+        bot = TelegramBot.objects.prefetch_related('chat_ids').get(pk=pk)
+    except TelegramBot.DoesNotExist:
+        return Response({'error': 'Bot not found'}, status=404)
+
+    chat_ids = list(bot.chat_ids.values_list('chat_id', flat=True))
+    if not chat_ids:
+        return Response({'error': 'No chat IDs configured'}, status=400)
+
+    sent = []
+    errors = []
+    for cid in chat_ids:
+        try:
+            result = _telegram_api('sendMessage', bot.bot_token, {
+                'chat_id': cid,
+                'text': f'CPM Test Message\n\nBot: @{bot.bot_username}\nChat ID: {cid}\nStatus: Connected!',
+            })
+            if result.get('ok'):
+                sent.append(cid)
+            else:
+                errors.append(f'{cid}: {result.get("description", "Unknown")}')
+        except Exception as e:
+            errors.append(f'{cid}: {str(e)}')
+
+    if not sent:
+        return Response({'error': '; '.join(errors)}, status=400)
+
+    return Response({'status': 'ok', 'sent_to': sent, 'errors': errors})
+
+
+@api_view(['POST'])
+def telegram_chat_id_add(request, pk):
+    """Add a chat ID to an existing Telegram bot."""
+    try:
+        bot = TelegramBot.objects.get(pk=pk)
+    except TelegramBot.DoesNotExist:
+        return Response({'error': 'Bot not found'}, status=404)
+
+    chat_id = request.data.get('chat_id', '').strip()
+    label = request.data.get('label', '').strip()
+
+    if not chat_id:
+        return Response({'error': 'chat_id is required'}, status=400)
+
+    if bot.chat_ids.filter(chat_id=chat_id).exists():
+        return Response({'error': f'Chat ID {chat_id} already exists'}, status=400)
+
+    obj = TelegramChatId.objects.create(bot=bot, chat_id=chat_id, label=label)
+    return Response({
+        'status': 'ok',
+        'id': obj.id,
+        'chat_id': obj.chat_id,
+        'label': obj.label,
+    })
+
+
+@api_view(['POST'])
+def telegram_chat_id_delete(request, pk):
+    """Delete a chat ID from a Telegram bot."""
+    try:
+        obj = TelegramChatId.objects.get(pk=pk)
+    except TelegramChatId.DoesNotExist:
+        return Response({'error': 'Chat ID not found'}, status=404)
+
+    # Must keep at least one chat ID
+    remaining = obj.bot.chat_ids.count()
+    if remaining <= 1:
+        return Response({'error': 'Cannot delete the last chat ID'}, status=400)
+
+    obj.delete()
+    return Response({'status': 'ok'})

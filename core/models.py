@@ -227,6 +227,10 @@ class ServicePort(models.Model):
     protocol = models.CharField(max_length=10, choices=PROTOCOL_CHOICES, default='http')
     status = models.CharField(max_length=20, choices=SERVICE_STATUS_CHOICES, default='unknown')
     remarks = models.TextField(blank=True, null=True)
+    # Docker deployment info
+    is_docker = models.BooleanField(default=False)
+    docker_image = models.CharField(max_length=500, blank=True, default='')
+    docker_container = models.CharField(max_length=255, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -317,3 +321,34 @@ class GitHubAccount(models.Model):
 
     def __str__(self):
         return self.username
+
+
+class TelegramBot(models.Model):
+    bot_token = models.CharField(max_length=500, unique=True)
+    bot_username = models.CharField(max_length=255)
+    bot_name = models.CharField(max_length=255, blank=True, default='')
+    chat_id = models.CharField(max_length=100, blank=True, default='')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'telegram_bots'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"@{self.bot_username}"
+
+
+class TelegramChatId(models.Model):
+    bot = models.ForeignKey(TelegramBot, on_delete=models.CASCADE, related_name='chat_ids')
+    chat_id = models.CharField(max_length=100)
+    label = models.CharField(max_length=255, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'telegram_chat_ids'
+        unique_together = [('bot', 'chat_id')]
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.chat_id} ({self.label})" if self.label else self.chat_id

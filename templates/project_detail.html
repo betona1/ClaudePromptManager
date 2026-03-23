@@ -7,7 +7,12 @@
 <div class="project-header">
     <div class="project-header-top">
         <div style="flex:1;">
-            <h1 class="editable-cell" data-field="name" data-id="{{ project.id }}" data-endpoint="/api/projects/">{{ project.name }}</h1>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <h1 class="editable-cell" data-field="name" data-id="{{ project.id }}" data-endpoint="/api/projects/">{{ project.name }}</h1>
+                <span class="project-detail-heart {% if project.favorited %}active{% endif %}" data-project-id="{{ project.id }}" title="Favorite">&#9829;</span>
+                {% if hook_count %}<span class="memo-card-claude-badge" title="Claude Code ({{ hook_count }})">&#10040;</span>{% endif %}
+                {% if today_count %}<span class="memo-card-today" title="Today: {{ today_count }}" style="font-size:12px;">{{ today_count }}</span>{% endif %}
+            </div>
             {% if project.path %}<div class="path">{{ project.path }}</div>{% endif %}
             <div class="desc editable-cell" data-field="description" data-id="{{ project.id }}" data-endpoint="/api/projects/" data-multiline="true">{{ project.description|default:"" }}</div>
         </div>
@@ -21,6 +26,7 @@
                 {% endif %}
                 {% if project.url %}<a href="{{ project.url }}" target="_blank" class="project-env-link dev">Dev</a>{% endif %}
                 {% if project.deploy_url %}<a href="{{ project.deploy_url }}" target="_blank" class="project-env-link prod">Prod</a>{% endif %}
+                {% for s in services %}{% if s.is_docker %}<span class="docker-badge" title="{{ s.docker_container }}: {{ s.docker_image }}">&#128674; Docker</span>{% endif %}{% endfor %}
             </div>
             <div class="editable-cell" data-field="github_url" data-id="{{ project.id }}" data-endpoint="/api/projects/" title="GitHub URL">{% if project.github_url %}{{ project.github_url }}{% else %}Click to set GitHub URL{% endif %}</div>
             <div class="editable-cell" data-field="url" data-id="{{ project.id }}" data-endpoint="/api/projects/" title="Dev URL">{% if project.url %}{{ project.url }}{% else %}Click to set URL{% endif %}</div>
@@ -29,12 +35,81 @@
             <a href="{% url 'export' %}?project={{ project.name }}" class="text-xs link">Export JSON</a>
         </div>
     </div>
-    <div class="project-header-stats">
-        <span class="project-header-days">{{ working_days }}<span>days</span></span>
-        {% if total_tokens %}<span class="project-header-tokens">{{ tokens_display }}<span>tokens</span></span>{% endif %}
-        <span>{{ total }} prompts</span>
-        <span>{% if first_at %}{{ first_at|date:"m/d" }} ~ {{ last_at|date:"m/d" }}{% endif %}</span>
+</div>
+
+<!-- Stats Cards -->
+<div class="grid grid-5 mb-4" style="margin-top:12px;">
+    <div class="stat-card yellow">
+        <div class="stat-num">{{ today_count }}</div>
+        <div class="stat-label">Today</div>
     </div>
+    <div class="stat-card default">
+        <div class="stat-num">{{ working_days }}</div>
+        <div class="stat-label">Working Days</div>
+    </div>
+    <div class="stat-card green">
+        <div class="stat-num">{{ tokens_display }}</div>
+        <div class="stat-label">Total Tokens</div>
+    </div>
+    <div class="stat-card default">
+        <div class="stat-num">{{ total }}</div>
+        <div class="stat-label">Total Prompts</div>
+    </div>
+    <div class="stat-card blue">
+        <div class="stat-num">{{ session_count }}</div>
+        <div class="stat-label">Sessions</div>
+    </div>
+</div>
+
+<!-- Token Breakdown -->
+{% if token_breakdown.total %}
+<div class="project-info-section mb-4">
+    <div class="section-title">Token Usage</div>
+    <div class="grid grid-4" style="gap:8px;">
+        <div class="stat-card-sm">
+            <div class="stat-num-sm">{{ token_breakdown.input_display }}</div>
+            <div class="stat-label">Input</div>
+        </div>
+        <div class="stat-card-sm">
+            <div class="stat-num-sm">{{ token_breakdown.output_display }}</div>
+            <div class="stat-label">Output</div>
+        </div>
+        <div class="stat-card-sm">
+            <div class="stat-num-sm">{{ token_breakdown.cache_read_display }}</div>
+            <div class="stat-label">Cache Read</div>
+        </div>
+        <div class="stat-card-sm">
+            <div class="stat-num-sm">{{ token_breakdown.cache_create_display }}</div>
+            <div class="stat-label">Cache Create</div>
+        </div>
+    </div>
+    <div class="project-period">{% if first_at %}{{ first_at|date:"Y/m/d" }} ~ {{ last_at|date:"Y/m/d" }}{% endif %}</div>
+</div>
+{% endif %}
+
+<!-- Todos / Goals -->
+<div class="project-info-section mb-4">
+    <div class="section-title" style="display:flex;align-items:center;gap:8px;">
+        Goals
+        <span class="memo-card-todo-badge" data-project-id="{{ project.id }}" data-project-name="{{ project.name }}" title="Manage goals">
+            {% if todo_total %}<span class="todo-progress">{{ todo_completed }}/{{ todo_total }}</span>
+            {% else %}<span class="todo-progress-empty">&#9744;</span>{% endif %}
+        </span>
+    </div>
+    {% if todos %}
+    <div class="project-todo-list">
+        {% for t in todos %}
+        <div class="project-todo-item {% if t.is_completed %}completed{% endif %}">
+            <span class="project-todo-check">{% if t.is_completed %}&#9745;{% else %}&#9744;{% endif %}</span>
+            <span class="project-todo-text">{{ t.title }}</span>
+            {% if t.category == 'deploy' %}<span class="badge-deploy">Deploy</span>{% endif %}
+            {% if t.completed_at %}<span class="project-todo-date">{{ t.completed_at|date:"m/d" }}</span>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-hint">No goals set. Click the badge to add goals.</div>
+    {% endif %}
 </div>
 
 <!-- Screenshot Gallery -->
@@ -71,6 +146,76 @@
     {% for md in md_files %}
     <a href="{% url 'project-md' project.id md.name %}" class="md-file-chip">{{ md.name }}</a>
     {% endfor %}
+</div>
+{% endif %}
+
+<!-- Service Ports -->
+{% if services %}
+<div class="project-info-section mb-4">
+    <div class="section-title">Service Ports <span class="text-light text-xs">({{ services|length }})</span></div>
+    <div style="overflow-x:auto;">
+        <table class="service-table">
+            <thead>
+                <tr>
+                    <th>Server</th>
+                    <th>IP</th>
+                    <th>Port</th>
+                    <th>Service</th>
+                    <th>Type</th>
+                    <th>Docker</th>
+                    <th>Status</th>
+                    <th>Remarks</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in services %}
+                <tr>
+                    <td>{{ s.server_name }}</td>
+                    <td class="font-mono">{{ s.ip }}</td>
+                    <td class="font-mono font-bold">{{ s.port }}</td>
+                    <td>{{ s.service_name }}</td>
+                    <td><span class="badge badge-{{ s.service_type }}">{{ s.get_service_type_display }}</span></td>
+                    <td>{% if s.is_docker %}<span class="docker-badge" title="{{ s.docker_container }}">&#128674; {{ s.docker_image|truncatechars:30 }}</span>{% else %}<span class="text-light">&mdash;</span>{% endif %}</td>
+                    <td><span class="status-dot {{ s.status }}"></span>{{ s.get_status_display }}</td>
+                    <td class="editable-cell" data-field="remarks" data-id="{{ s.id }}" data-endpoint="/api/services/">{{ s.remarks|default:"" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Execution History -->
+{% if executions %}
+<div class="project-info-section mb-4">
+    <div class="section-title">Recent Executions <span class="text-light text-xs">({{ executions|length }})</span></div>
+    <div class="project-list-box">
+        {% for e in executions %}
+        <div class="project-list-item">
+            <span class="status-dot {{ e.status }}"></span>
+            <span class="project-list-cmd">{{ e.command|truncatechars:80 }}</span>
+            {% if e.duration_ms %}<span class="text-xs text-light">{{ e.duration_ms }}ms</span>{% endif %}
+            <span class="text-xs text-light">{{ e.created_at|date:"m/d H:i" }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Recent Sessions -->
+{% if sessions %}
+<div class="project-info-section mb-4">
+    <div class="section-title">Recent Sessions <span class="text-light text-xs">({{ session_count }} total)</span></div>
+    <div class="project-list-box">
+        {% for s in sessions %}
+        <div class="project-list-item">
+            <span class="font-mono text-xs text-light">{{ s.id|truncatechars:12 }}</span>
+            <span style="flex:1;">{{ s.message_count }} messages</span>
+            <span class="text-xs text-light">{{ s.started_at|date:"m/d H:i" }}</span>
+        </div>
+        {% endfor %}
+    </div>
 </div>
 {% endif %}
 

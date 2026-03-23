@@ -16,6 +16,7 @@
                 <a href="{% url 'dashboard' %}" {% if request.path == '/' %}class="active"{% endif %}>Dashboard</a>
                 <a href="{% url 'project-list' %}" {% if '/projects' in request.path %}class="active"{% endif %}>Projects</a>
                 <a href="{% url 'prompt-list' %}" {% if '/prompts' in request.path %}class="active"{% endif %}>Prompts</a>
+                <a href="{% url 'statistics' %}" {% if '/stats' in request.path %}class="active"{% endif %}>Stats</a>
                 <a href="{% url 'remote-execute' %}" {% if '/remote' in request.path %}class="active"{% endif %}>Remote</a>
                 <a href="{% url 'setup-guide' %}" {% if '/setup' in request.path %}class="active"{% endif %}>Setup</a>
             </div>
@@ -46,6 +47,36 @@
             <button id="screenshot-modal-prev" class="screenshot-modal-nav screenshot-modal-nav-prev" style="display:none;">&#8249;</button>
             <button id="screenshot-modal-next" class="screenshot-modal-nav screenshot-modal-nav-next" style="display:none;">&#8250;</button>
             <div id="screenshot-modal-counter" class="screenshot-modal-counter" style="display:none;"></div>
+        </div>
+    </div>
+
+    <!-- Todo Modal (global) -->
+    <div class="todo-modal" id="todo-modal" style="display:none;">
+        <div class="todo-modal-backdrop"></div>
+        <div class="todo-modal-body">
+            <div class="todo-modal-header">
+                <h2 id="todo-modal-title">Project Goals</h2>
+                <button class="todo-modal-close" id="todo-modal-close">&times;</button>
+            </div>
+            <div class="todo-modal-subtitle">프로젝트에 적용하고 싶은 목표를 설정하세요</div>
+            <div class="todo-modal-content">
+                <div class="todo-add-row">
+                    <input type="text" id="todo-add-input" placeholder="새 목표 추가..." maxlength="500">
+                    <button class="btn-sm btn-blue" id="todo-add-btn">Add</button>
+                </div>
+                <div class="todo-list" id="todo-list"></div>
+                <div class="todo-deploy-divider" id="todo-deploy-divider" style="display:none;">
+                    <span>Deploy / Milestone</span>
+                </div>
+                <div class="todo-deploy-list" id="todo-deploy-list"></div>
+                <div class="todo-add-deploy-row">
+                    <input type="text" id="todo-add-deploy-input" placeholder="배포 마일스톤 추가..." maxlength="500">
+                    <button class="btn-sm btn-blue" id="todo-add-deploy-btn">Add</button>
+                </div>
+            </div>
+            <div class="todo-modal-footer">
+                <span class="todo-modal-progress" id="todo-modal-progress"></span>
+            </div>
         </div>
     </div>
 

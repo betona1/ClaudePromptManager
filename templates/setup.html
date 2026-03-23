@@ -4,7 +4,7 @@
 {% block content %}
 <div class="setup-page">
     <h1 class="setup-title">Setup</h1>
-    <p class="setup-desc">GitHub 연동 및 원격 PC 설정</p>
+    <p class="setup-desc">GitHub 연동, Telegram 봇, 원격 PC 설정</p>
 
     <!-- GitHub 계정 목록 -->
     <div class="setup-section" id="github-accounts-section">
@@ -60,6 +60,49 @@
                 <span id="github-do-sync-status" class="text-sm text-light"></span>
             </div>
         </div>
+    </div>
+
+    <!-- Telegram 봇 연동 -->
+    <div class="setup-section" id="telegram-bots-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h2 style="margin-bottom: 0;">Telegram 봇 연동</h2>
+            <button class="gh-add-btn" id="tg-add-btn" title="봇 추가">+</button>
+        </div>
+
+        <!-- 봇 추가 폼 (토글) -->
+        <div id="tg-add-form" class="gh-add-form" style="display:none;">
+            <div class="github-token-row">
+                <div class="github-token-field">
+                    <label for="tg-add-token">Bot Token</label>
+                    <div style="display:flex; gap:6px; align-items:center;">
+                        <input type="password" id="tg-add-token" placeholder="123456:ABC-DEF...">
+                        <button type="button" class="btn-help-sm" id="telegram-guide-help-btn" title="봇 만드는 방법">?</button>
+                    </div>
+                </div>
+                <div class="github-token-field">
+                    <label for="tg-add-chatid">Chat ID</label>
+                    <input type="text" id="tg-add-chatid" placeholder="123456789">
+                </div>
+                <button class="btn-sm btn-blue" id="tg-add-save" style="align-self: flex-end;">추가</button>
+                <button class="btn-sm btn-cancel-sm" id="tg-add-cancel" style="align-self: flex-end;">취소</button>
+            </div>
+            <div id="tg-add-status" class="github-token-status" style="display:none;"></div>
+        </div>
+
+        <!-- 봇 카드 목록 -->
+        <div id="tg-bots-list"></div>
+        <div id="tg-bots-empty" class="text-sm text-light" style="text-align:center; padding: 20px; display:none;">
+            등록된 Telegram 봇이 없습니다. [+] 버튼으로 추가하세요.
+        </div>
+    </div>
+
+    <!-- Telegram 봇 만들기 가이드 (버튼으로 팝업) -->
+    <div class="setup-section">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin-bottom: 0;">Telegram 봇 만들기</h2>
+            <button class="btn-sm btn-blue" id="telegram-guide-open-btn">가이드 보기</button>
+        </div>
+        <p class="text-sm text-light" style="margin-top: 6px;">BotFather로 봇 생성 &rarr; Token &amp; Chat ID 확인 방법을 안내합니다.</p>
     </div>
 
     <!-- GitHub 토큰 만들기 (버튼으로 팝업) -->
@@ -237,6 +280,212 @@
     </div>
 </div>
 
+<!-- Telegram 봇 만들기 가이드 팝업 -->
+<div class="guide-modal" id="telegram-guide-modal" style="display:none;">
+    <div class="guide-modal-backdrop"></div>
+    <div class="guide-modal-body" style="max-width:580px;">
+        <div class="guide-modal-header">
+            <h2>Telegram Bot 만들기 (완전 초보용)</h2>
+            <button class="guide-modal-close">&times;</button>
+        </div>
+        <div class="guide-modal-content">
+
+            <!-- ━━━ PART A: 봇 만들기 ━━━ -->
+            <div class="tg-guide-part-title">Part A. 봇 만들기 (2분)</div>
+
+            <div class="guide-step">
+                <div class="setup-step">1</div>
+                <div>
+                    <h3>BotFather 열기</h3>
+                    <p>아래 링크를 <strong>폰에서</strong> 누르세요. Telegram 앱이 바로 열립니다.</p>
+                    <div style="margin:10px 0;">
+                        <a href="https://t.me/BotFather" target="_blank" class="tg-guide-big-btn">BotFather 열기 (폰에서 클릭)</a>
+                    </div>
+                    <div class="guide-note">
+                        PC에서 보고 있다면? 폰 Telegram 앱 열고 &rarr; 상단 검색 &rarr; <code>BotFather</code> 입력 &rarr; 파란 체크표시 있는 계정 선택
+                    </div>
+                    <div class="tg-guide-checkpoint">
+                        <strong>확인:</strong> BotFather와 채팅방이 열렸나요? &rarr; 하단에 <code>START</code> 또는 메시지 입력창이 보이면 OK
+                    </div>
+                </div>
+            </div>
+
+            <div class="guide-step">
+                <div class="setup-step">2</div>
+                <div>
+                    <h3>/newbot 보내기</h3>
+                    <p>채팅창에 아래를 <strong>그대로</strong> 입력해서 보내세요:</p>
+                    <div class="setup-code-block">
+                        <code id="tg-cmd-newbot">/newbot</code>
+                        <button class="setup-copy-btn" data-target="tg-cmd-newbot" title="Copy">&#128203;</button>
+                    </div>
+                    <div class="tg-guide-checkpoint">
+                        <strong>확인:</strong> BotFather가 "Alright, a new bot. How are we going to call it?" 라고 답했나요? &rarr; 다음으로
+                    </div>
+                </div>
+            </div>
+
+            <div class="guide-step">
+                <div class="setup-step">3</div>
+                <div>
+                    <h3>봇 이름 입력 (2번 대답해야 함!)</h3>
+                    <div class="guide-note guide-note-warn">
+                        여기가 제일 헷갈리는 부분! BotFather가 <strong>두 번</strong> 물어봅니다. 하나는 "이름", 하나는 "ID" 입니다.
+                    </div>
+
+                    <p style="margin-top:10px;"><strong>첫 번째 질문</strong> — "이름을 뭘로 할래?" (표시되는 이름)</p>
+                    <div class="tg-guide-chat">
+                        <div class="tg-guide-msg bot">Alright, a new bot. How are we going to call it? Please choose a name for your bot.</div>
+                        <div class="tg-guide-msg user">내 CPM 봇</div>
+                    </div>
+                    <p class="text-sm text-light">아무거나 OK. 한글도 됩니다. 나중에 바꿀 수 있어요.</p>
+
+                    <p style="margin-top:14px;"><strong>두 번째 질문</strong> — "username을 뭘로 할래?" (고유 ID)</p>
+                    <div class="tg-guide-chat">
+                        <div class="tg-guide-msg bot">Good. Now let's choose a username for your bot. It must end in `bot`.</div>
+                        <div class="tg-guide-msg user">my_cpm_alert_bot</div>
+                    </div>
+
+                    <div class="tg-guide-rules">
+                        <div class="tg-guide-rule ok">my_cpm_bot &rarr; OK</div>
+                        <div class="tg-guide-rule ok">TestCpmBot &rarr; OK</div>
+                        <div class="tg-guide-rule ok">joacham_notify_bot &rarr; OK</div>
+                        <div class="tg-guide-rule fail">my_cpm &rarr; <code>bot</code>으로 안 끝남</div>
+                        <div class="tg-guide-rule fail">내봇_bot &rarr; 한글 안 됨</div>
+                        <div class="tg-guide-rule fail">cpm_bot &rarr; 너무 짧아서 이미 누가 씀</div>
+                    </div>
+                    <div class="guide-note">
+                        "Sorry, this username is already taken" 나오면 &rarr; 다른 이름 시도. 앞에 자기 이름이나 숫자 붙이면 됩니다.
+                    </div>
+                    <div class="tg-guide-checkpoint">
+                        <strong>확인:</strong> "Done! Congratulations on your new bot." 메시지가 왔나요? &rarr; 다음으로
+                    </div>
+                </div>
+            </div>
+
+            <div class="guide-step">
+                <div class="setup-step">4</div>
+                <div>
+                    <h3>Bot Token 복사</h3>
+                    <p>위 축하 메시지 안에 토큰이 들어있습니다:</p>
+                    <div class="tg-guide-chat">
+                        <div class="tg-guide-msg bot">
+                            Done! Congratulations on your new bot. You can now add a description ...<br><br>
+                            Use this token to access the HTTP API:<br>
+                            <code class="tg-guide-token">7123456789:AAH_abcDEF1234ghijKLMN5678opqr</code><br><br>
+                            You can use this token ...
+                        </div>
+                    </div>
+                    <div class="guide-note guide-note-warn">
+                        <strong>숫자:영문</strong> 형태의 긴 문자열을 꾹 눌러서 복사하세요!<br>
+                        콜론(<code>:</code>) 포함해서 전체를 복사해야 합니다.<br><br>
+                        복사 못 했으면? BotFather에게 <code>/mybots</code> &rarr; 봇 선택 &rarr; <code>API Token</code> 누르면 다시 볼 수 있습니다.
+                    </div>
+                    <div class="tg-guide-checkpoint">
+                        <strong>확인:</strong> 메모장에 붙여넣기 해보세요. <code>숫자:영문</code> 형태면 OK. 여기까지가 Part A 끝!
+                    </div>
+                </div>
+            </div>
+
+            <!-- ━━━ PART B: Chat ID 확인 ━━━ -->
+            <div class="tg-guide-part-title">Part B. Chat ID 알아내기 (1분)</div>
+
+            <div class="guide-step">
+                <div class="setup-step">5</div>
+                <div>
+                    <h3>Chat ID란?</h3>
+                    <p>봇이 메시지를 보낼 <strong>대상(나)</strong>의 고유번호입니다.</p>
+                    <p>username(<code>@myname</code>)이 <strong>아니고</strong>, 순수 숫자입니다 (예: <code>123456789</code>)</p>
+
+                    <div class="tg-guide-divider">가장 쉬운 방법</div>
+
+                    <p>아래 링크를 눌러 <strong>@userinfobot</strong>을 여세요:</p>
+                    <div style="margin:10px 0;">
+                        <a href="https://t.me/userinfobot" target="_blank" class="tg-guide-big-btn" style="background:#6b7280;">userinfobot 열기 (폰에서 클릭)</a>
+                    </div>
+
+                    <p>열리면 <code>/start</code> 또는 아무 메시지를 보내세요:</p>
+                    <div class="tg-guide-chat">
+                        <div class="tg-guide-msg user">/start</div>
+                        <div class="tg-guide-msg bot">
+                            @joacham<br>
+                            Id: <code class="tg-guide-token">5765213489</code><br>
+                            First: Joacham<br>
+                            Lang: ko
+                        </div>
+                    </div>
+                    <p><strong><code>Id:</code> 뒤의 숫자</strong>를 복사하세요. 그게 Chat ID입니다.</p>
+
+                    <div class="tg-guide-checkpoint">
+                        <strong>확인:</strong> 숫자만 복사했나요? (공백, @ 없이 숫자만!) &rarr; 다음으로
+                    </div>
+                </div>
+            </div>
+
+            <!-- ━━━ PART C: 중요! 봇에게 먼저 말 걸기 ━━━ -->
+            <div class="tg-guide-part-title" style="background:#fef2f2;color:#991b1b;border-color:#fecaca;">Part C. 가장 많이 빠지는 함정!</div>
+
+            <div class="guide-step">
+                <div class="setup-step" style="background:#ef4444;">6</div>
+                <div>
+                    <h3 style="color:#dc2626;">봇에게 먼저 /start 보내기</h3>
+                    <div class="guide-note guide-note-warn">
+                        <strong>이걸 안 하면 Test가 절대 안 됩니다!</strong><br>
+                        Telegram 봇은 사용자가 먼저 말을 걸어야만 그 사용자에게 메시지를 보낼 수 있습니다.
+                    </div>
+
+                    <p style="margin-top:10px;">Telegram 검색에서 <strong>내가 방금 만든 봇</strong> (예: <code>@my_cpm_alert_bot</code>)을 찾아서:</p>
+                    <div class="tg-guide-chat">
+                        <div class="tg-guide-msg user">/start</div>
+                    </div>
+                    <p>이것만 보내면 됩니다. 봇이 아무 응답 안 해도 정상입니다.</p>
+
+                    <div class="tg-guide-checkpoint" style="background:#f0fdf4;border-color:#86efac;">
+                        <strong>완료!</strong> 이제 CPM에서 봇이 당신에게 메시지를 보낼 수 있습니다.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ━━━ PART D: CPM 등록 ━━━ -->
+            <div class="tg-guide-part-title">Part D. CPM에 등록 (30초)</div>
+
+            <div class="guide-step">
+                <div class="setup-step">7</div>
+                <div>
+                    <h3>토큰 + Chat ID 입력</h3>
+                    <p>이 페이지 위의 <strong>Telegram 봇 연동</strong> &rarr; <strong>[+]</strong> 버튼 클릭:</p>
+                    <ul class="guide-config-list">
+                        <li><strong>Bot Token:</strong> 4단계에서 복사한 토큰 (예: <code>7123456789:AAH_abc...</code>)</li>
+                        <li><strong>Chat ID:</strong> 5단계에서 복사한 숫자 (예: <code>5765213489</code>)</li>
+                    </ul>
+                    <p><strong>[추가]</strong> 클릭 &rarr; 토큰 자동 검증 &rarr; 봇 이름이 자동으로 채워짐</p>
+                    <p style="margin-top:10px;"><strong>[Test]</strong> 버튼 &rarr; Telegram에 메시지가 오면 성공!</p>
+
+                    <div class="tg-guide-checkpoint" style="background:#f0fdf4;border-color:#86efac;">
+                        <strong>성공!</strong> Telegram에 "CPM Test Message"가 왔으면 설정 완료!
+                    </div>
+                </div>
+            </div>
+
+            <div class="guide-done" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+                <a href="https://t.me/BotFather" target="_blank" class="btn-sm btn-blue" style="text-decoration:none;">1. BotFather 열기</a>
+                <a href="https://t.me/userinfobot" target="_blank" class="btn-sm" style="text-decoration:none;background:#f3f4f6;color:#374151;">2. userinfobot 열기</a>
+            </div>
+
+            <div class="guide-trouble">
+                <strong>그래도 안 되면? 체크리스트</strong>
+                <ul class="setup-checklist">
+                    <li class="tg-check-critical">6단계를 했나요? 내 봇에게 <code>/start</code> 를 <strong>반드시</strong> 보내야 합니다</li>
+                    <li>Chat ID가 <strong>순수 숫자</strong>인지 확인 (<code>@username</code>이 아님!)</li>
+                    <li>토큰 복사할 때 <strong>앞뒤 공백이나 줄바꿈</strong>이 섞이지 않았는지 확인</li>
+                    <li>토큰에 <strong>콜론(:)</strong>이 포함되어 있는지 확인 (예: <code>123:ABC</code>)</li>
+                    <li>그룹에 보내려면? 봇을 그룹에 <strong>멤버로 초대</strong>하고, Chat ID에 <code>-</code>로 시작하는 그룹 ID 사용</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -273,6 +522,9 @@ function setupModal(openBtnId, modalId) {
 setupModal('remote-guide-open-btn', 'remote-guide-modal');
 setupModal('token-guide-open-btn', 'token-guide-modal');
 setupModal('github-token-help-btn', 'token-guide-modal');
+setupModal('telegram-guide-help-btn', 'telegram-guide-modal');
+setupModal('telegram-guide-open-btn', 'telegram-guide-modal');
 </script>
 <script src="/static/js/github-sync.js"></script>
+<script src="/static/js/telegram-setup.js"></script>
 {% endblock %}

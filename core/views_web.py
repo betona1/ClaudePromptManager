@@ -1,11 +1,12 @@
 import json
 import os
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from pathlib import Path
 from django.conf import settings
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, HttpResponse
-from django.db.models import Count, Q, Max, Min, Sum
+from django.db.models import Count, Q, Max, Min, Sum, Exists, OuterRef
+from django.db.models.functions import TruncHour, TruncDate
 from .models import Project, ProjectScreenshot, Terminal, Prompt, Template, Session, ServicePort, Execution
 
 
@@ -36,12 +37,13 @@ def _attach_working_days(projects):
 
 def dashboard(request):
     """Main dashboard with overview stats."""
-    projects = Project.objects.prefetch_related('screenshots').annotate(
-        prompt_count=Count('prompts'),
+    projects = Project.objects.prefetch_related('screenshots', 'todos').annotate(
+        prompt_count=Count('prompts', distinct=True),
         latest_at=Max('prompts__created_at'),
-        hook_prompt_count=Count('prompts', filter=Q(prompts__source__in=['hook', 'import'])),
-        todo_total=Count('todos'),
-        todo_completed=Count('todos', filter=Q(todos__is_completed=True)),
+        hook_prompt_count=Count('prompts', filter=Q(prompts__source__in=['hook', 'import']), distinct=True),
+        todo_total=Count('todos', distinct=True),
+        todo_completed=Count('todos', filter=Q(todos__is_completed=True), distinct=True),
+        has_docker=Exists(ServicePort.objects.filter(project=OuterRef('pk'), is_docker=True)),
     ).order_by('-favorited', '-latest_at')
 
     total = Prompt.objects.count()
@@ -146,6 +148,39 @@ def project_detail(request, pk):
     # Screenshots
     screenshots = project.screenshots.all()
 
+    # Todos
+    todos = project.todos.all()
+    todo_total = todos.count()
+    todo_completed = todos.filter(is_completed=True).count()
+
+    # Service Ports
+    services = ServicePort.objects.filter(project=project).select_related('project')
+
+    # Token breakdown
+    token_breakdown = {
+        'input': project.total_input_tokens,
+        'output': project.total_output_tokens,
+        'cache_read': project.total_cache_read_tokens,
+        'cache_create': project.total_cache_create_tokens,
+        'total': total_tokens,
+        'input_display': _format_tokens(project.total_input_tokens),
+        'output_display': _format_tokens(project.total_output_tokens),
+        'cache_read_display': _format_tokens(project.total_cache_read_tokens),
+        'cache_create_display': _format_tokens(project.total_cache_create_tokens),
+    }
+
+    # Sessions
+    sessions = Session.objects.filter(project=project).order_by('-started_at')[:10]
+    session_count = Session.objects.filter(project=project).count()
+
+    # Executions
+    executions = Execution.objects.filter(project=project).order_by('-created_at')[:10]
+
+    # Today's count & hook count
+    today = date.today()
+    today_count = project.prompts.filter(created_at__date=today).count()
+    hook_count = project.prompts.filter(source__in=['hook', 'import']).count()
+
     context = {
         'project': project,
         'prompts': prompts_page,
@@ -155,6 +190,7 @@ def project_detail(request, pk):
         'last_at': date_range['last_at'],
         'total_tokens': total_tokens,
         'tokens_display': _format_tokens(total_tokens),
+        'token_breakdown': token_breakdown,
         'page': page,
         'total_pages': total_pages,
         'prompt_count': prompt_count,
@@ -165,6 +201,15 @@ def project_detail(request, pk):
         'sort': sort,
         'md_files': md_files,
         'screenshots': screenshots,
+        'todos': todos,
+        'todo_total': todo_total,
+        'todo_completed': todo_completed,
+        'services': services,
+        'sessions': sessions,
+        'session_count': session_count,
+        'executions': executions,
+        'today_count': today_count,
+        'hook_count': hook_count,
     }
     return render(request, 'project_detail.html', context)
 
@@ -418,3 +463,147 @@ def remote_execute(request):
         'projects': projects,
         'recent_execs': recent_execs,
     })
+
+
+def statistics(request):
+    """Statistics page with daily/weekly/monthly breakdowns."""
+    mode = request.GET.get('mode', 'daily')
+    date_str = request.GET.get('date')
+
+    # Parse base date
+    try:
+        base_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else date.today()
+    except ValueError:
+        base_date = date.today()
+
+    # Calculate time range based on mode
+    if mode == 'weekly':
+        # Monday of the week
+        start_date = base_date - timedelta(days=base_date.weekday())
+        end_date = start_date + timedelta(days=6)
+        prev_date = (start_date - timedelta(days=7)).isoformat()
+        next_date = (start_date + timedelta(days=7)).isoformat()
+        date_label = f"{start_date.strftime('%m/%d')} ~ {end_date.strftime('%m/%d')}"
+    elif mode == 'monthly':
+        start_date = base_date.replace(day=1)
+        # Last day of month
+        if start_date.month == 12:
+            end_date = start_date.replace(year=start_date.year + 1, month=1, day=1) - timedelta(days=1)
+        else:
+            end_date = start_date.replace(month=start_date.month + 1, day=1) - timedelta(days=1)
+        # Prev/next month
+        prev_month = start_date - timedelta(days=1)
+        next_month = end_date + timedelta(days=1)
+        prev_date = prev_month.replace(day=1).isoformat()
+        next_date = next_month.isoformat()
+        date_label = base_date.strftime('%Y-%m')
+    else:  # daily
+        start_date = base_date
+        end_date = base_date
+        prev_date = (base_date - timedelta(days=1)).isoformat()
+        next_date = (base_date + timedelta(days=1)).isoformat()
+        date_label = base_date.strftime('%Y-%m-%d')
+
+    # Query prompts in range
+    prompts_qs = Prompt.objects.filter(
+        created_at__date__gte=start_date,
+        created_at__date__lte=end_date,
+    )
+    total_count = prompts_qs.count()
+
+    # Summary stats
+    status_counts = dict(prompts_qs.values_list('status').annotate(c=Count('id')).values_list('status', 'c'))
+    success_count = status_counts.get('success', 0)
+    success_rate = round(success_count / total_count * 100) if total_count else 0
+
+    # Days in range
+    num_days = (end_date - start_date).days + 1
+    active_days = prompts_qs.dates('created_at', 'day').count()
+    avg_per_day = round(total_count / active_days, 1) if active_days else 0
+
+    # Token usage in period
+    project_ids = list(prompts_qs.values_list('project_id', flat=True).distinct())
+    # Approximate: sum tokens from projects that had activity in period
+    period_tokens = prompts_qs.count()  # We don't have per-prompt tokens, use count as proxy
+
+    # ── Chart Data ──
+
+    # 1. Activity timeline
+    if mode == 'daily':
+        timeline_qs = prompts_qs.annotate(
+            period=TruncHour('created_at')
+        ).values('period').annotate(count=Count('id')).order_by('period')
+        # Fill all 24 hours
+        timeline_map = {r['period'].hour: r['count'] for r in timeline_qs}
+        activity_labels = [f'{h}:00' for h in range(24)]
+        activity_data = [timeline_map.get(h, 0) for h in range(24)]
+    elif mode == 'weekly':
+        timeline_qs = prompts_qs.annotate(
+            period=TruncDate('created_at')
+        ).values('period').annotate(count=Count('id')).order_by('period')
+        timeline_map = {r['period']: r['count'] for r in timeline_qs}
+        days = [start_date + timedelta(days=i) for i in range(7)]
+        day_names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+        activity_labels = [f"{d.strftime('%m/%d')} {day_names[i]}" for i, d in enumerate(days)]
+        activity_data = [timeline_map.get(d, 0) for d in days]
+    else:  # monthly
+        timeline_qs = prompts_qs.annotate(
+            period=TruncDate('created_at')
+        ).values('period').annotate(count=Count('id')).order_by('period')
+        timeline_map = {r['period']: r['count'] for r in timeline_qs}
+        days = [start_date + timedelta(days=i) for i in range(num_days)]
+        activity_labels = [d.strftime('%m/%d') for d in days]
+        activity_data = [timeline_map.get(d, 0) for d in days]
+
+    # 2. Status distribution
+    status_labels = ['Success', 'Fail', 'WIP']
+    status_data = [
+        status_counts.get('success', 0),
+        status_counts.get('fail', 0),
+        status_counts.get('wip', 0),
+    ]
+
+    # 3. Tag distribution
+    tag_qs = prompts_qs.exclude(tag__isnull=True).exclude(tag='').values('tag').annotate(
+        count=Count('id')
+    ).order_by('-count')
+    tag_labels = [r['tag'].capitalize() for r in tag_qs]
+    tag_data = [r['count'] for r in tag_qs]
+
+    # 4. Project ranking
+    project_qs = prompts_qs.values('project__name').annotate(
+        count=Count('id')
+    ).order_by('-count')[:10]
+    project_labels = [r['project__name'] or 'Unknown' for r in project_qs]
+    project_data = [r['count'] for r in project_qs]
+
+    # 5. Source distribution
+    source_qs = prompts_qs.values('source').annotate(count=Count('id')).order_by('-count')
+    source_labels = [r['source'].capitalize() for r in source_qs]
+    source_data = [r['count'] for r in source_qs]
+
+    # Recent prompts in period
+    recent_prompts = prompts_qs.select_related('project').order_by('-created_at')[:20]
+
+    chart_data = json.dumps({
+        'activity': {'labels': activity_labels, 'data': activity_data},
+        'status': {'labels': status_labels, 'data': status_data},
+        'tags': {'labels': tag_labels, 'data': tag_data},
+        'projects': {'labels': project_labels, 'data': project_data},
+        'source': {'labels': source_labels, 'data': source_data},
+    }, ensure_ascii=False)
+
+    context = {
+        'mode': mode,
+        'base_date': base_date.isoformat(),
+        'date_label': date_label,
+        'prev_date': prev_date,
+        'next_date': next_date,
+        'total_count': total_count,
+        'success_rate': success_rate,
+        'avg_per_day': avg_per_day,
+        'active_days': active_days,
+        'chart_data': chart_data,
+        'recent_prompts': recent_prompts,
+    }
+    return render(request, 'statistics.html', context)

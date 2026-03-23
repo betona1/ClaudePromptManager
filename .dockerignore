@@ -1,0 +1,16 @@
+.env
+.git
+.gitignore
+__pycache__
+*.pyc
+*.pyo
+*.db
+*.db-journal
+*.db-wal
+staticfiles/
+static/screenshots/
+tests/
+docs/
+*.md
+LICENSE
+.claude/
