@@ -3,6 +3,12 @@ set -e
 
 echo "=== CPM Docker Entrypoint ==="
 
+# Seed screenshots volume (only if empty)
+if [ -z "$(ls -A /app/static/screenshots/ 2>/dev/null)" ] && [ -d /app/_screenshots_seed ] && [ "$(ls -A /app/_screenshots_seed/ 2>/dev/null)" ]; then
+    echo "Seeding screenshots from build..."
+    cp -r /app/_screenshots_seed/* /app/static/screenshots/ 2>/dev/null || true
+fi
+
 # Run migrations
 echo "Running migrations..."
 python manage.py migrate --noinput

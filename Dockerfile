@@ -19,6 +19,10 @@ RUN pip install --no-cache-dir -e . gunicorn whitenoise
 # Copy application code
 COPY . .
 
+# Save screenshots as seed (volume mount will shadow static/screenshots/)
+RUN mkdir -p /app/_screenshots_seed && \
+    cp -r /app/static/screenshots/* /app/_screenshots_seed/ 2>/dev/null || true
+
 # Collect static files
 RUN python manage.py collectstatic --noinput 2>/dev/null || true
 

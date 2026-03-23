@@ -8,7 +8,6 @@ __pycache__
 *.db-journal
 *.db-wal
 staticfiles/
-static/screenshots/
 tests/
 docs/
 *.md
