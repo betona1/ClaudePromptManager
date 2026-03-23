@@ -157,6 +157,26 @@ def ensure_session(conn: sqlite3.Connection, session_id: str, project_id: int, c
     conn.commit()
 
 
+def get_remote_server() -> str:
+    """Get remote CPM server URL from env. Returns empty string if not set."""
+    return os.environ.get('CPM_REMOTE_SERVER', '').rstrip('/')
+
+
+def remote_post(endpoint: str, data: dict):
+    """POST to remote CPM server if configured. Non-blocking, fire-and-forget."""
+    server = get_remote_server()
+    if not server:
+        return
+    try:
+        import urllib.request
+        url = f"{server}/api/{endpoint}"
+        payload = json.dumps(data, ensure_ascii=False).encode('utf-8')
+        req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
+        urllib.request.urlopen(req, timeout=5)
+    except Exception:
+        pass  # Never block Claude Code
+
+
 def redis_publish(channel: str, data: dict):
     """Publish to Redis if available. Silently skip if Redis is not running."""
     try:

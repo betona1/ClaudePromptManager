@@ -20,7 +20,7 @@ import json
 import os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from shared import get_db, ensure_tables, redis_publish
+from shared import get_db, ensure_tables, redis_publish, remote_post
 
 
 def truncate(text: str, max_len: int = 500) -> str:
@@ -82,6 +82,15 @@ def main():
         conn.close()
     except Exception:
         pass  # Never block Claude Code
+
+    # Sync to remote server if configured (CPM_REMOTE_SERVER env)
+    try:
+        remote_post('hook/stop/', {
+            'session_id': session_id,
+            'response': truncate(last_message),
+        })
+    except Exception:
+        pass
 
     print('{}')
 
