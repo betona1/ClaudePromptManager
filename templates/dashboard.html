@@ -3,6 +3,28 @@
 {% block title %}Claude Prompt Manager{% endblock %}
 
 {% block content %}
+<!-- Hook Health Warning -->
+{% if not hooks_ok %}
+<div class="hook-alert" id="hook-alert">
+    <div class="hook-alert-content">
+        <span class="hook-alert-icon">&#9888;</span>
+        <div class="hook-alert-text">
+            <strong>Hook 수집 중단됨!</strong>
+            settings.json에 CPM hooks가 등록되어 있지 않습니다.
+            <span class="hook-alert-detail">
+                Prompt: {% if hooks_health.prompt_hook %}OK{% else %}Missing{% endif %} /
+                Stop: {% if hooks_health.stop_hook %}OK{% else %}Missing{% endif %}
+            </span>
+        </div>
+        {% if hooks_health.backup_exists %}
+        <button class="hook-alert-btn" id="hook-restore-btn" onclick="restoreHooks()">백업에서 복구</button>
+        {% else %}
+        <button class="hook-alert-btn" onclick="alert('백업이 없습니다. python3 manage.py cpm_setup 을 실행하세요.')">수동 복구 필요</button>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
 <!-- Stats -->
 <div class="grid grid-5 mb-4">
     <a href="{% url 'statistics' %}" class="stat-card yellow stat-card-link">

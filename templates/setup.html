@@ -114,109 +114,692 @@
         <p class="text-sm text-light" style="margin-top: 6px;">Personal Access Token 발급 방법을 안내합니다.</p>
     </div>
 
-    <!-- 원격 PC 연동 (버튼으로 팝업) -->
-    <div class="setup-section">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2 style="margin-bottom: 0;">원격 PC 연동</h2>
-            <button class="btn-sm btn-blue" id="remote-guide-open-btn">가이드 보기</button>
-        </div>
-        <p class="text-sm text-light" style="margin-top: 6px;">윈도우 등 다른 PC에서 Claude Code 쓰면 이 서버에 자동 기록됩니다.</p>
-    </div>
-</div>
+    <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+    <!-- 원격 PC 연동 — 종합 매뉴얼                    -->
+    <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
 
-<!-- 원격 PC 연동 가이드 팝업 -->
-<div class="guide-modal" id="remote-guide-modal" style="display:none;">
-    <div class="guide-modal-backdrop"></div>
-    <div class="guide-modal-body">
-        <div class="guide-modal-header">
-            <h2>원격 PC 연동 가이드</h2>
-            <button class="guide-modal-close">&times;</button>
-        </div>
-        <div class="guide-modal-content">
-            <div class="guide-step">
-                <div class="setup-step">1</div>
-                <div>
-                    <h3>다운로드</h3>
-                    <a href="{% url 'download-hook' 'cpm-hooks.zip' %}" class="setup-zip-btn">
-                        <span class="setup-zip-icon">&#128230;</span>
-                        <span>
-                            <strong>cpm-hooks.zip</strong>
-                            <span class="setup-zip-sub">서버 주소 자동 설정됨</span>
-                        </span>
-                    </a>
+    <div class="setup-section" id="remote-pc-section">
+        <h2 style="margin-bottom: 4px;">PC 연동 Setup</h2>
+        <p class="text-sm text-light" style="margin-bottom: 16px;">
+            다른 PC에서 Claude Code를 사용하면 이 서버(<strong>{{ server_url }}</strong>)에 프롬프트가 자동 기록됩니다.<br>
+            각 PC마다 아래 설정을 한 번만 해주면 됩니다.
+        </p>
+
+        <!-- 구조 설명 -->
+        <div class="setup-arch-box">
+            <div class="setup-arch-title">동작 구조</div>
+            <div class="setup-arch-diagram">
+                <div class="setup-arch-node">
+                    <div class="setup-arch-node-label">PC (Windows/Linux/Mac)</div>
+                    <div class="setup-arch-node-desc">Claude Code + Hook</div>
+                </div>
+                <div class="setup-arch-arrow">&rarr;</div>
+                <div class="setup-arch-node setup-arch-node-server">
+                    <div class="setup-arch-node-label">CPM Server</div>
+                    <div class="setup-arch-node-desc">{{ server_url }}</div>
                 </div>
             </div>
+            <p class="text-sm text-light" style="margin-top: 8px; text-align: center;">
+                프롬프트 입력 시 hook이 서버 API로 자동 전송 (5초 타임아웃, 실패해도 Claude Code 동작에 영향 없음)
+            </p>
+        </div>
+
+        <!-- OS 탭 -->
+        <div class="setup-os-tabs">
+            <button class="setup-os-tab active" data-os="windows" id="tab-windows">Windows</button>
+            <button class="setup-os-tab" data-os="linux" id="tab-linux">Linux / Mac</button>
+        </div>
+
+        <!-- ━━━ Windows 가이드 ━━━ -->
+        <div class="setup-os-content" id="os-windows">
+
+            <div class="guide-step">
+                <div class="setup-step">1</div>
+                <div style="flex:1;">
+                    <h3>Python 설치 확인</h3>
+                    <p>Windows 터미널 (CMD 또는 PowerShell)에서:</p>
+                    <div class="setup-code-block">
+                        <code id="win-python-check">python --version</code>
+                        <button class="setup-copy-btn" data-target="win-python-check" title="Copy">&#128203;</button>
+                    </div>
+                    <div class="guide-note">
+                        <strong>Python 3.6 이상</strong>이 필요합니다.<br>
+                        없으면 <a href="https://www.python.org/downloads/" target="_blank" style="color:#1d4ed8;">python.org</a>에서 설치.
+                        설치 시 <strong>"Add Python to PATH"</strong> 체크 필수!
+                    </div>
+                </div>
+            </div>
+
             <div class="guide-step">
                 <div class="setup-step">2</div>
-                <div>
-                    <h3>압축 풀기</h3>
-                    <p><code class="setup-path-highlight">C:\</code> 에 풀면 <code class="setup-path-highlight">C:\cpm\</code> 폴더가 생깁니다.</p>
+                <div style="flex:1;">
+                    <h3>Hook 파일 다운로드</h3>
+                    <a href="{% url 'download-hook' 'cpm-hooks-windows.zip' %}" class="setup-zip-btn">
+                        <span class="setup-zip-icon">&#128230;</span>
+                        <span>
+                            <strong>cpm-hooks-windows.zip</strong>
+                            <span class="setup-zip-sub">서버 주소({{ server_url }}) 자동 설정됨</span>
+                        </span>
+                    </a>
+                    <p style="margin-top: 10px;">다운로드 후 <code class="setup-path-highlight">C:\</code> 에 압축 풀기:</p>
                     <div class="setup-file-tree">
-                        <div class="setup-file-folder">C:\cpm\</div>
-                        <div class="setup-file-item">on_prompt_remote.py</div>
-                        <div class="setup-file-item">on_stop_remote.py</div>
-                        <div class="setup-file-item setup-file-highlight">settings.json</div>
+                        <div class="setup-file-folder">C:\cpm-hooks\</div>
+                        <div class="setup-file-item">on_prompt_remote.py &nbsp;<span class="text-sm text-light">— 프롬프트 전송 hook</span></div>
+                        <div class="setup-file-item">on_stop_remote.py &nbsp;<span class="text-sm text-light">— 응답 완료 전송 hook</span></div>
+                        <div class="setup-file-item">import_history.py &nbsp;<span class="text-sm text-light">— 기존 기록 일괄 전송</span></div>
+                        <div class="setup-file-item setup-file-highlight">settings.json &nbsp;<span class="text-sm text-light">— Claude Code 설정 파일</span></div>
                         <div class="setup-file-item setup-file-dim">README.txt</div>
                     </div>
                 </div>
             </div>
+
             <div class="guide-step">
                 <div class="setup-step">3</div>
-                <div>
-                    <h3>hooks 설정</h3>
-                    <p class="text-sm text-light">위치: <code>%USERPROFILE%\.claude\settings.json</code></p>
+                <div style="flex:1;">
+                    <h3>Claude Code hooks 설정</h3>
+                    <p class="text-sm text-light" style="margin-bottom: 8px;">
+                        설정 파일 위치: <code class="setup-path-highlight">%USERPROFILE%\.claude\settings.json</code>
+                        <br>(보통 <code>C:\Users\&lt;사용자명&gt;\.claude\settings.json</code>)
+                    </p>
+
                     <div class="setup-case">
-                        <div class="setup-case-label new">settings.json 없는 경우</div>
-                        <p><code class="setup-path-highlight">C:\cpm\settings.json</code> 을 <code class="setup-path-highlight">%USERPROFILE%\.claude\</code> 에 그대로 복사</p>
-                    </div>
-                    <div class="setup-case">
-                        <div class="setup-case-label existing">이미 settings.json 있는 경우</div>
-                        <p>기존 파일 열고 <code>"hooks"</code> 부분만 추가:</p>
+                        <div class="setup-case-label new">settings.json이 없는 경우 (처음 설치)</div>
+                        <p>다운받은 <code class="setup-path-highlight">C:\cpm-hooks\settings.json</code> 파일을 복사:</p>
                         <div class="setup-code-block">
-<code id="hooks-only">"hooks": {
+                            <code id="win-copy-settings">copy C:\cpm-hooks\settings.json %USERPROFILE%\.claude\settings.json</code>
+                            <button class="setup-copy-btn" data-target="win-copy-settings" title="Copy">&#128203;</button>
+                        </div>
+                        <p class="text-sm text-light"><code>.claude</code> 폴더가 없으면 먼저 만드세요: <code>mkdir %USERPROFILE%\.claude</code></p>
+                    </div>
+
+                    <div class="setup-case">
+                        <div class="setup-case-label existing">이미 settings.json이 있는 경우</div>
+                        <p>기존 파일을 메모장으로 열고 <code>"hooks"</code> 부분만 추가 (기존 설정 유지):</p>
+                        <div class="setup-code-block">
+<code id="win-hooks-only">"hooks": {
   "UserPromptSubmit": [
     {
-      "type": "command",
-      "command": "python C:\\cpm\\on_prompt_remote.py"
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "python C:\\cpm-hooks\\on_prompt_remote.py"
+        }
+      ]
     }
   ],
   "Stop": [
     {
-      "type": "command",
-      "command": "python C:\\cpm\\on_stop_remote.py"
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "python C:\\cpm-hooks\\on_stop_remote.py"
+        }
+      ]
     }
   ]
 }</code>
-                            <button class="setup-copy-btn" data-target="hooks-only" title="Copy">&#128203;</button>
+                            <button class="setup-copy-btn" data-target="win-hooks-only" title="Copy">&#128203;</button>
+                        </div>
+                        <div class="guide-note guide-note-warn">
+                            기존 JSON에 병합할 때 <strong>콤마(,)</strong>를 빠뜨리지 마세요!<br>
+                            예: 기존 <code>"permissions": {...}</code> 뒤에 <code>,</code> 추가 후 <code>"hooks"</code> 붙이기
                         </div>
                     </div>
                 </div>
             </div>
+
             <div class="guide-step">
                 <div class="setup-step">4</div>
-                <div>
-                    <h3>기존 기록 가져오기</h3>
-                    <p>이전 기록이 있으면 한 번만 실행:</p>
-                    <div class="setup-code-block">
-                        <code id="import-cmd">python C:\cpm\import_history.py</code>
-                        <button class="setup-copy-btn" data-target="import-cmd" title="Copy">&#128203;</button>
+                <div style="flex:1;">
+                    <h3>Claude Code 재시작</h3>
+                    <p>터미널을 <strong>완전히 닫고</strong> 다시 열면 hooks가 적용됩니다.</p>
+                    <div class="guide-note">
+                        Claude Code가 시작될 때 <code>settings.json</code>을 읽기 때문에, 변경 후에는 반드시 재시작해야 합니다.
                     </div>
-                    <p class="text-sm text-light">중복은 자동 건너뜁니다.</p>
                 </div>
             </div>
-            <div class="guide-done">
-                Claude Code 재시작하면 자동 기록. 서버: <strong>{{ server_url }}</strong>
+
+            <div class="guide-step">
+                <div class="setup-step">5</div>
+                <div style="flex:1;">
+                    <h3>동작 확인</h3>
+                    <p>Claude Code에서 아무 프롬프트를 입력하고, 이 서버 대시보드에서 기록이 보이는지 확인:</p>
+                    <div class="setup-code-block">
+                        <code id="win-check-url">{{ server_url }}</code>
+                        <button class="setup-copy-btn" data-target="win-check-url" title="Copy">&#128203;</button>
+                    </div>
+                    <p class="text-sm text-light">프롬프트를 보내면 1~2초 내에 대시보드에 나타납니다.</p>
+                </div>
             </div>
+
+            <div class="guide-done">
+                설정 완료! 이제 이 PC의 모든 Claude Code 프롬프트가 자동 기록됩니다.
+            </div>
+
             <div class="guide-trouble">
-                <strong>안 되면?</strong>
+                <strong>Windows 문제 해결</strong>
                 <ul class="setup-checklist">
-                    <li>Python 설치 확인 — <code>python --version</code></li>
-                    <li>서버 접속 확인 — <a href="{{ server_url }}" target="_blank">{{ server_url }}</a></li>
-                    <li>경로 확인 — <code>C:\cpm\on_prompt_remote.py</code></li>
+                    <li><code>python</code> 명령어가 안 되면 &rarr; <code>python3</code> 또는 <code>py</code> 로 시도</li>
+                    <li>서버 연결 안 되면 &rarr; 브라우저에서 <a href="{{ server_url }}" target="_blank">{{ server_url }}</a> 접속 확인</li>
+                    <li>방화벽에서 포트 9200이 차단되어 있는지 확인</li>
+                    <li><code>settings.json</code> 문법 오류 &rarr; <a href="https://jsonlint.com" target="_blank">jsonlint.com</a>에서 검증</li>
+                    <li>경로에 한글/공백이 있으면 &rarr; 따옴표로 감싸기: <code>"python" "C:\cpm-hooks\on_prompt_remote.py"</code></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- ━━━ Linux / Mac 가이드 ━━━ -->
+        <div class="setup-os-content" id="os-linux" style="display:none;">
+
+            <!-- 모드 선택 -->
+            <div class="setup-mode-selector">
+                <div class="setup-mode-title">설치 모드 선택</div>
+                <div class="setup-mode-cards">
+                    <div class="setup-mode-card active" data-mode="linux-a" id="mode-linux-a">
+                        <div class="setup-mode-card-badge">추천</div>
+                        <strong>A. 로컬 + 원격</strong>
+                        <p class="text-sm text-light">로컬 DB에도 저장하고 서버에도 전송.<br>오프라인에서도 기록이 남음.</p>
+                    </div>
+                    <div class="setup-mode-card" data-mode="linux-b" id="mode-linux-b">
+                        <strong>B. 원격 전용</strong>
+                        <p class="text-sm text-light">서버에만 전송 (로컬 DB 없음).<br>설치가 더 간단함.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="guide-step">
+                <div class="setup-step">1</div>
+                <div style="flex:1;">
+                    <h3>다운로드 &amp; 설치</h3>
+
+                    <!-- 자동 설치 (추천) -->
+                    <div class="setup-case">
+                        <div class="setup-case-label new">자동 설치 (추천)</div>
+                        <a href="{% url 'download-hook' 'cpm-hooks-linux.zip' %}" class="setup-zip-btn" style="margin-bottom:10px;">
+                            <span class="setup-zip-icon">&#128230;</span>
+                            <span>
+                                <strong>cpm-hooks-linux.zip</strong>
+                                <span class="setup-zip-sub">hook 전체 + 자동 설치 스크립트 포함</span>
+                            </span>
+                        </a>
+                        <div class="setup-code-block">
+<code id="linux-auto-install">unzip cpm-hooks-linux.zip
+cd cpm-hooks
+bash setup.sh</code>
+                            <button class="setup-copy-btn" data-target="linux-auto-install" title="Copy">&#128203;</button>
+                        </div>
+                        <p class="text-sm text-light">
+                            setup.sh가 자동으로: 파일 복사, 환경변수 설정, hooks 설정, 서버 연결 테스트를 진행합니다.
+                        </p>
+                    </div>
+
+                    <!-- 수동 설치 -->
+                    <div class="setup-case">
+                        <div class="setup-case-label existing">수동 설치</div>
+                        <div class="setup-code-block">
+<code id="linux-manual-install"># 1. 파일 복사
+unzip cpm-hooks-linux.zip
+cp -r cpm-hooks ~/cpm-hooks
+
+# 2. 환경변수 설정 (bash 또는 zsh)
+echo 'export CPM_REMOTE_SERVER={{ server_url }}' >> ~/.bashrc
+source ~/.bashrc</code>
+                            <button class="setup-copy-btn" data-target="linux-manual-install" title="Copy">&#128203;</button>
+                        </div>
+                        <div class="guide-note">
+                            <strong>zsh 사용자</strong>는 <code>~/.bashrc</code> 대신 <code>~/.zshrc</code>를 수정하세요.
+                        </div>
+                    </div>
+
+                    <!-- zip 내용물 -->
+                    <div class="setup-file-tree" style="margin-top: 10px;">
+                        <div class="setup-file-folder">~/cpm-hooks/</div>
+                        <div class="setup-file-item">on_prompt.py &nbsp;<span class="text-sm text-light">— 로컬+원격 프롬프트 hook (Mode A)</span></div>
+                        <div class="setup-file-item">on_stop.py &nbsp;<span class="text-sm text-light">— 로컬+원격 응답 hook (Mode A)</span></div>
+                        <div class="setup-file-item">shared.py &nbsp;<span class="text-sm text-light">— 공유 유틸리티 (DB, Redis, 원격전송)</span></div>
+                        <div class="setup-file-item">import_history.py &nbsp;<span class="text-sm text-light">— Claude Code 기록 일괄 전송</span></div>
+                        <div class="setup-file-item">sync_to_remote.py &nbsp;<span class="text-sm text-light">— 로컬 DB &rarr; 서버 동기화</span></div>
+                        <div class="setup-file-item setup-file-highlight">setup.sh &nbsp;<span class="text-sm text-light">— 자동 설치 스크립트</span></div>
+                        <div class="setup-file-item setup-file-dim">remote-only/ &nbsp;<span class="text-sm text-light">— 원격 전용 hook (Mode B)</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="guide-step">
+                <div class="setup-step">2</div>
+                <div style="flex:1;">
+                    <h3>Claude Code hooks 설정</h3>
+                    <p class="text-sm text-light" style="margin-bottom: 8px;">
+                        설정 파일 위치: <code class="setup-path-highlight">~/.claude/settings.json</code>
+                    </p>
+
+                    <!-- Mode A: 로컬 + 원격 -->
+                    <div class="setup-case" id="linux-mode-a-settings">
+                        <div class="setup-case-label new">Mode A: 로컬 저장 + 원격 전송</div>
+                        <p class="text-sm text-light">로컬 DB(<code>~/.local/share/cpm/cpm.db</code>)에 저장 + <code>CPM_REMOTE_SERVER</code>로 동시 전송</p>
+                        <div class="setup-code-block">
+<code id="linux-hooks-a">"hooks": {
+  "UserPromptSubmit": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "python3 ~/cpm-hooks/on_prompt.py"
+        }
+      ]
+    }
+  ],
+  "Stop": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "python3 ~/cpm-hooks/on_stop.py"
+        }
+      ]
+    }
+  ]
+}</code>
+                            <button class="setup-copy-btn" data-target="linux-hooks-a" title="Copy">&#128203;</button>
+                        </div>
+                        <div class="guide-note">
+                            <strong>환경변수 필수:</strong> <code>CPM_REMOTE_SERVER={{ server_url }}</code><br>
+                            이 변수가 없으면 로컬 DB에만 저장됩니다 (현재 이 PC가 이 상태일 수 있습니다).
+                        </div>
+                    </div>
+
+                    <!-- Mode B: 원격 전용 -->
+                    <div class="setup-case" id="linux-mode-b-settings" style="display:none;">
+                        <div class="setup-case-label existing">Mode B: 원격 전용 (로컬 DB 없음)</div>
+                        <p class="text-sm text-light">서버에만 전송. 파일 하나로 동작하므로 가장 간단.</p>
+                        <div class="setup-code-block">
+<code id="linux-hooks-b">"hooks": {
+  "UserPromptSubmit": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "python3 ~/cpm-hooks/remote-only/remote_hook.py prompt"
+        }
+      ]
+    }
+  ],
+  "Stop": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "python3 ~/cpm-hooks/remote-only/remote_hook.py stop"
+        }
+      ]
+    }
+  ]
+}</code>
+                            <button class="setup-copy-btn" data-target="linux-hooks-b" title="Copy">&#128203;</button>
+                        </div>
+                    </div>
+
+                    <div class="setup-case">
+                        <div class="setup-case-label new">settings.json이 없는 경우</div>
+                        <div class="setup-code-block">
+<code id="linux-cp-settings"># Mode A (로컬+원격)
+cp ~/cpm-hooks/settings-local-remote.json ~/.claude/settings.json
+
+# Mode B (원격 전용)
+cp ~/cpm-hooks/settings-remote-only.json ~/.claude/settings.json</code>
+                            <button class="setup-copy-btn" data-target="linux-cp-settings" title="Copy">&#128203;</button>
+                        </div>
+                    </div>
+
+                    <div class="setup-case">
+                        <div class="setup-case-label existing">이미 settings.json이 있는 경우</div>
+                        <p>기존 파일을 열고 위의 <code>"hooks"</code> 부분만 병합하세요.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="guide-step">
+                <div class="setup-step">3</div>
+                <div style="flex:1;">
+                    <h3>Claude Code 재시작 &amp; 확인</h3>
+                    <p>터미널을 닫고 다시 열어서 Claude Code 실행. 프롬프트 입력 후 대시보드 확인:</p>
+                    <div class="setup-code-block">
+                        <code id="linux-check-url">{{ server_url }}</code>
+                        <button class="setup-copy-btn" data-target="linux-check-url" title="Copy">&#128203;</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="guide-done">
+                설정 완료! 이제 이 PC의 모든 Claude Code 프롬프트가 자동 기록됩니다.
+            </div>
+
+            <div class="guide-trouble">
+                <strong>Linux/Mac 문제 해결</strong>
+                <ul class="setup-checklist">
+                    <li><code>python3</code> 설치 확인: <code>python3 --version</code></li>
+                    <li>환경변수 확인: <code>echo $CPM_REMOTE_SERVER</code> — 값이 비어있으면 셸 재시작 필요</li>
+                    <li>서버 연결 확인: <code>curl -s {{ server_url }}/api/ | head -1</code></li>
+                    <li>hook 파일 권한: <code>chmod +x ~/cpm-hooks/*.py</code></li>
+                    <li>Mac에서 <code>~</code> 경로 안 되면 &rarr; 절대경로 사용: <code>/Users/username/cpm-hooks/...</code></li>
                 </ul>
             </div>
         </div>
     </div>
+
+    <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+    <!-- 기존 기록 가져오기 (History Import)              -->
+    <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+
+    <div class="setup-section" id="history-import-section">
+        <h2>기존 기록 가져오기</h2>
+        <p class="text-sm text-light" style="margin-bottom: 16px;">
+            이미 Claude Code를 사용해왔다면, 로컬에 저장된 기존 기록을 이 서버로 한 번에 전송할 수 있습니다.<br>
+            중복은 자동으로 건너뛰므로 여러 번 실행해도 안전합니다.
+        </p>
+
+        <div class="guide-step">
+            <div class="setup-step">1</div>
+            <div style="flex:1;">
+                <h3>방법 A — Claude Code 세션 기록 전송 (추천)</h3>
+                <p><code>~/.claude/projects/</code> 아래 세션 파일과 <code>history.jsonl</code>을 읽어서 서버에 전송합니다.</p>
+
+                <div class="setup-os-tabs" style="margin: 10px 0 8px;">
+                    <button class="setup-os-tab-sm active" data-import-os="win">Windows</button>
+                    <button class="setup-os-tab-sm" data-import-os="lin">Linux / Mac</button>
+                </div>
+
+                <div class="setup-import-content" id="import-win">
+                    <div class="setup-code-block">
+                        <code id="import-win-cmd">python C:\cpm-hooks\import_history.py</code>
+                        <button class="setup-copy-btn" data-target="import-win-cmd" title="Copy">&#128203;</button>
+                    </div>
+                </div>
+                <div class="setup-import-content" id="import-lin" style="display:none;">
+                    <div class="setup-code-block">
+                        <code id="import-lin-cmd">python3 ~/cpm-hooks/import_history.py</code>
+                        <button class="setup-copy-btn" data-target="import-lin-cmd" title="Copy">&#128203;</button>
+                    </div>
+                </div>
+
+                <div class="guide-note">
+                    <strong>어떤 기록을 읽나요?</strong><br>
+                    &bull; <code>~/.claude/history.jsonl</code> — 프롬프트 히스토리<br>
+                    &bull; <code>~/.claude/projects/*/&lt;session-id&gt;.jsonl</code> — 세션별 대화 기록<br>
+                    각 항목에서 사용자 메시지 + Claude 응답 요약을 추출합니다.
+                </div>
+            </div>
+        </div>
+
+        <div class="guide-step">
+            <div class="setup-step">2</div>
+            <div style="flex:1;">
+                <h3>방법 B — 로컬 CPM DB 동기화</h3>
+                <p>이미 로컬에 CPM이 설치되어 DB(<code>~/.local/share/cpm/cpm.db</code>)가 있는 경우:</p>
+                <div class="setup-code-block">
+                    <code id="sync-db-cmd">python3 ~/cpm-hooks/sync_to_remote.py {{ server_url }}</code>
+                    <button class="setup-copy-btn" data-target="sync-db-cmd" title="Copy">&#128203;</button>
+                </div>
+                <p class="text-sm text-light">로컬 DB의 모든 프롬프트를 서버 <code>/api/hook/import/</code>로 전송합니다.</p>
+            </div>
+        </div>
+
+        <div class="guide-step">
+            <div class="setup-step" style="background:#10b981;">?</div>
+            <div style="flex:1;">
+                <h3>실행 결과 예시</h3>
+                <div class="setup-code-block" style="font-size: 12px; color: #94a3b8;">
+<code>CPM Import — sending to {{ server_url }}
+Hostname: my-laptop
+
+  Reading /home/user/.claude/history.jsonl...
+  history.jsonl: 128 imported, 5 skipped
+  Reading /home/user/.claude/projects/...
+    ... 50 imported, 12 skipped
+    ... 100 imported, 24 skipped
+  sessions: 156 imported, 31 skipped
+
+Done! Total imported: 284 prompts
+Check: {{ server_url }}</code>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+    <!-- tmux 세션 공유 가이드                            -->
+    <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+
+    <div class="setup-section" id="tmux-guide-section">
+        <h2>tmux — 핸드폰에서 원격 작업하기</h2>
+        <p class="text-sm text-light" style="margin-bottom: 16px;">
+            tmux를 사용하면 서버에 터미널 세션을 만들어 놓고, 핸드폰(SSH)이나 다른 PC에서 <strong>같은 화면을 실시간 공유</strong>할 수 있습니다.<br>
+            연결이 끊어져도 세션은 살아있어서 나중에 다시 이어서 작업 가능합니다.
+        </p>
+
+        <!-- 구조 설명 -->
+        <div class="setup-arch-box">
+            <div class="setup-arch-title">tmux 세션 공유</div>
+            <div class="setup-arch-diagram">
+                <div class="setup-arch-node">
+                    <div class="setup-arch-node-label">PC (서버)</div>
+                    <div class="setup-arch-node-desc">tmux new -s work</div>
+                </div>
+                <div class="setup-arch-arrow">&larr;</div>
+                <div class="setup-arch-node setup-arch-node-server" style="border-color:#10b981; background:#f0fdf4;">
+                    <div class="setup-arch-node-label">핸드폰 / 다른 PC</div>
+                    <div class="setup-arch-node-desc">SSH &rarr; tmux attach</div>
+                </div>
+            </div>
+            <p class="text-sm text-light" style="margin-top: 8px; text-align: center;">
+                양쪽에서 같은 화면을 실시간으로 보고, 한쪽에서 타이핑하면 다른 쪽에도 보입니다
+            </p>
+        </div>
+
+        <!-- 설치 -->
+        <div class="guide-step">
+            <div class="setup-step">0</div>
+            <div style="flex:1;">
+                <h3>설치</h3>
+                <div class="setup-code-block">
+                    <code id="tmux-install">sudo apt install -y tmux</code>
+                    <button class="setup-copy-btn" data-target="tmux-install" title="Copy">&#128203;</button>
+                </div>
+                <p class="text-sm text-light">Mac: <code>brew install tmux</code> &nbsp;|&nbsp; 이미 설치되어 있으면 건너뛰세요.</p>
+            </div>
+        </div>
+
+        <!-- 기본 사용법 -->
+        <div class="tmux-guide-subtitle">기본 사용법</div>
+
+        <div class="guide-step">
+            <div class="setup-step">1</div>
+            <div style="flex:1;">
+                <h3>세션 만들기</h3>
+                <p>서버(PC)에서 새 tmux 세션을 시작합니다:</p>
+                <div class="setup-code-block">
+                    <code id="tmux-new">tmux new -s work</code>
+                    <button class="setup-copy-btn" data-target="tmux-new" title="Copy">&#128203;</button>
+                </div>
+                <p class="text-sm text-light"><code>work</code>은 세션 이름입니다. 원하는 이름으로 바꿔도 됩니다.</p>
+            </div>
+        </div>
+
+        <div class="guide-step">
+            <div class="setup-step">2</div>
+            <div style="flex:1;">
+                <h3>핸드폰에서 붙기</h3>
+                <p>핸드폰(cpmSSH 등)에서 같은 서버에 SSH 접속 후:</p>
+                <div class="setup-code-block">
+                    <code id="tmux-attach">tmux attach -t work</code>
+                    <button class="setup-copy-btn" data-target="tmux-attach" title="Copy">&#128203;</button>
+                </div>
+                <p class="text-sm text-light">이제 PC와 핸드폰이 <strong>같은 화면</strong>을 보게 됩니다!</p>
+            </div>
+        </div>
+
+        <div class="guide-step">
+            <div class="setup-step">3</div>
+            <div style="flex:1;">
+                <h3>세션에서 나가기 (세션은 유지)</h3>
+                <div class="setup-code-block" style="font-size: 14px;">
+                    <code id="tmux-detach">Ctrl+B &rarr; D</code>
+                    <button class="setup-copy-btn" data-target="tmux-detach" title="Copy">&#128203;</button>
+                </div>
+                <p class="text-sm text-light">
+                    <code>Ctrl+B</code>를 먼저 누르고, 손을 뗀 후 <code>D</code>를 누릅니다.<br>
+                    세션은 백그라운드에서 계속 실행됩니다. 나중에 <code>tmux attach -t work</code>로 다시 붙으면 됩니다.
+                </p>
+            </div>
+        </div>
+
+        <!-- 세션 관리 -->
+        <div class="tmux-guide-subtitle">세션 관리</div>
+
+        <div class="tmux-cmd-table">
+            <div class="tmux-cmd-row tmux-cmd-header">
+                <div class="tmux-cmd-col-cmd">명령어</div>
+                <div class="tmux-cmd-col-desc">설명</div>
+            </div>
+            <div class="tmux-cmd-row">
+                <div class="tmux-cmd-col-cmd"><code>tmux new -s 이름</code></div>
+                <div class="tmux-cmd-col-desc">새 세션 만들기</div>
+            </div>
+            <div class="tmux-cmd-row">
+                <div class="tmux-cmd-col-cmd"><code>tmux attach -t 이름</code></div>
+                <div class="tmux-cmd-col-desc">기존 세션에 붙기</div>
+            </div>
+            <div class="tmux-cmd-row">
+                <div class="tmux-cmd-col-cmd"><code>tmux ls</code></div>
+                <div class="tmux-cmd-col-desc">세션 목록 보기</div>
+            </div>
+            <div class="tmux-cmd-row">
+                <div class="tmux-cmd-col-cmd"><code>tmux kill-session -t 이름</code></div>
+                <div class="tmux-cmd-col-desc">세션 완전 종료</div>
+            </div>
+            <div class="tmux-cmd-row">
+                <div class="tmux-cmd-col-cmd"><code>exit</code></div>
+                <div class="tmux-cmd-col-desc">현재 세션 종료 (세션 안에서)</div>
+            </div>
+        </div>
+
+        <!-- 단축키 -->
+        <div class="tmux-guide-subtitle">단축키 (Ctrl+B 먼저 누르고)</div>
+
+        <div class="guide-note" style="margin-bottom: 12px;">
+            tmux의 모든 단축키는 <strong>Ctrl+B</strong>를 먼저 누르고 손을 뗀 후, 다음 키를 누릅니다.
+        </div>
+
+        <div class="tmux-cmd-table">
+            <div class="tmux-cmd-row tmux-cmd-header">
+                <div class="tmux-cmd-col-cmd">키</div>
+                <div class="tmux-cmd-col-desc">기능</div>
+            </div>
+            <div class="tmux-cmd-row">
+                <div class="tmux-cmd-col-cmd"><code>D</code></div>
+                <div class="tmux-cmd-col-desc">세션에서 빠져나오기 (detach) — 세션은 계속 살아있음</div>
+            </div>
+            <div class="tmux-cmd-row">
+                <div class="tmux-cmd-col-cmd"><code>C</code></div>
+                <div class="tmux-cmd-col-desc">새 창(탭) 만들기</div>
+            </div>
+            <div class="tmux-cmd-row">
+                <div class="tmux-cmd-col-cmd"><code>N</code></div>
+                <div class="tmux-cmd-col-desc">다음 창으로 이동</div>
+            </div>
+            <div class="tmux-cmd-row">
+                <div class="tmux-cmd-col-cmd"><code>P</code></div>
+                <div class="tmux-cmd-col-desc">이전 창으로 이동</div>
+            </div>
+            <div class="tmux-cmd-row">
+                <div class="tmux-cmd-col-cmd"><code>0~9</code></div>
+                <div class="tmux-cmd-col-desc">해당 번호 창으로 바로 이동</div>
+            </div>
+            <div class="tmux-cmd-row">
+                <div class="tmux-cmd-col-cmd"><code>%</code></div>
+                <div class="tmux-cmd-col-desc">화면 좌우 분할</div>
+            </div>
+            <div class="tmux-cmd-row">
+                <div class="tmux-cmd-col-cmd"><code>"</code></div>
+                <div class="tmux-cmd-col-desc">화면 상하 분할</div>
+            </div>
+            <div class="tmux-cmd-row">
+                <div class="tmux-cmd-col-cmd"><code>방향키</code></div>
+                <div class="tmux-cmd-col-desc">분할된 화면(패널) 간 이동</div>
+            </div>
+            <div class="tmux-cmd-row">
+                <div class="tmux-cmd-col-cmd"><code>X</code></div>
+                <div class="tmux-cmd-col-desc">현재 패널 닫기</div>
+            </div>
+            <div class="tmux-cmd-row">
+                <div class="tmux-cmd-col-cmd"><code>[</code></div>
+                <div class="tmux-cmd-col-desc">스크롤 모드 (방향키/PgUp으로 스크롤, <code>Q</code>로 나가기)</div>
+            </div>
+        </div>
+
+        <!-- 실전 시나리오 -->
+        <div class="tmux-guide-subtitle">실전 시나리오</div>
+
+        <div class="setup-case" style="background: #f0fdf4; border-color: #86efac;">
+            <div class="setup-case-label" style="color: #16a34a;">핸드폰에서 Claude Code 사용하기</div>
+            <div class="setup-code-block">
+<code id="tmux-scenario-1"># PC에서 (한 번만)
+tmux new -s work
+claude                           # Claude Code 실행
+
+# 핸드폰에서 SSH 접속 후
+tmux attach -t work              # 같은 화면 공유!
+# Claude Code를 핸드폰에서 사용 가능</code>
+                <button class="setup-copy-btn" data-target="tmux-scenario-1" title="Copy">&#128203;</button>
+            </div>
+        </div>
+
+        <div class="setup-case">
+            <div class="setup-case-label existing">화면 분할로 멀티태스킹</div>
+            <div class="setup-code-block">
+<code id="tmux-scenario-2"># 세션 안에서
+Ctrl+B → %                       # 좌우 분할
+# 왼쪽: Claude Code, 오른쪽: 파일 편집
+Ctrl+B → 방향키                   # 패널 이동</code>
+                <button class="setup-copy-btn" data-target="tmux-scenario-2" title="Copy">&#128203;</button>
+            </div>
+        </div>
+
+        <div class="setup-case">
+            <div class="setup-case-label existing">퇴근 후 이어서 작업</div>
+            <div class="setup-code-block">
+<code id="tmux-scenario-3"># 퇴근 전 — 세션 놔두고 나가기
+Ctrl+B → D
+
+# 다음날 (또는 핸드폰에서)
+tmux attach -t work              # 어제 상태 그대로!</code>
+                <button class="setup-copy-btn" data-target="tmux-scenario-3" title="Copy">&#128203;</button>
+            </div>
+        </div>
+
+        <div class="guide-note" style="margin-top: 12px;">
+            <strong>CPM + tmux 조합의 장점:</strong> 서버에 CPM hooks가 설치되어 있으면,
+            tmux 안에서 Claude Code를 실행할 때 <strong>핸드폰에서 타이핑해도 프롬프트가 자동 기록</strong>됩니다.
+            실제 실행은 서버에서 일어나므로 hooks가 정상 동작합니다.
+        </div>
+
+        <div class="guide-trouble" style="margin-top: 12px;">
+            <strong>주의사항</strong>
+            <ul class="setup-checklist">
+                <li>tmux는 <strong>같은 서버 안에서만</strong> 세션 공유 가능 (80번 세션을 200번에서 attach 불가)</li>
+                <li>화면 크기가 다르면 작은 쪽에 맞춰짐 &rarr; 핸드폰 가로 모드 추천</li>
+                <li>세션 안에서 <code>exit</code> 입력하면 세션이 <strong>완전 종료</strong>됨 (나가기만 하려면 <code>Ctrl+B &rarr; D</code>)</li>
+                <li>스크롤이 안 되면 <code>Ctrl+B &rarr; [</code>로 스크롤 모드 진입</li>
+            </ul>
+        </div>
+    </div>
+
 </div>
 
 <!-- GitHub 토큰 만들기 가이드 팝업 -->
@@ -519,11 +1102,47 @@ function setupModal(openBtnId, modalId) {
     modal.addEventListener('keydown', function(e) { if (e.key === 'Escape') close(); });
 }
 
-setupModal('remote-guide-open-btn', 'remote-guide-modal');
 setupModal('token-guide-open-btn', 'token-guide-modal');
 setupModal('github-token-help-btn', 'token-guide-modal');
 setupModal('telegram-guide-help-btn', 'telegram-guide-modal');
 setupModal('telegram-guide-open-btn', 'telegram-guide-modal');
+
+// ━━━ OS Tab switching ━━━
+document.querySelectorAll('.setup-os-tab[data-os]').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+        // Toggle active tab
+        document.querySelectorAll('.setup-os-tab[data-os]').forEach(function(t) { t.classList.remove('active'); });
+        tab.classList.add('active');
+        // Toggle content
+        var os = tab.dataset.os;
+        document.getElementById('os-windows').style.display = os === 'windows' ? '' : 'none';
+        document.getElementById('os-linux').style.display = os === 'linux' ? '' : 'none';
+    });
+});
+
+// ━━━ Linux Mode selector ━━━
+document.querySelectorAll('.setup-mode-card[data-mode]').forEach(function(card) {
+    card.addEventListener('click', function() {
+        document.querySelectorAll('.setup-mode-card[data-mode]').forEach(function(c) { c.classList.remove('active'); });
+        card.classList.add('active');
+        var mode = card.dataset.mode;
+        var modeA = document.getElementById('linux-mode-a-settings');
+        var modeB = document.getElementById('linux-mode-b-settings');
+        if (modeA) modeA.style.display = mode === 'linux-a' ? '' : 'none';
+        if (modeB) modeB.style.display = mode === 'linux-b' ? '' : 'none';
+    });
+});
+
+// ━━━ Import OS tabs ━━━
+document.querySelectorAll('.setup-os-tab-sm[data-import-os]').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+        document.querySelectorAll('.setup-os-tab-sm[data-import-os]').forEach(function(t) { t.classList.remove('active'); });
+        tab.classList.add('active');
+        var os = tab.dataset.importOs;
+        document.getElementById('import-win').style.display = os === 'win' ? '' : 'none';
+        document.getElementById('import-lin').style.display = os === 'lin' ? '' : 'none';
+    });
+});
 </script>
 <script src="/static/js/github-sync.js"></script>
 <script src="/static/js/telegram-setup.js"></script>

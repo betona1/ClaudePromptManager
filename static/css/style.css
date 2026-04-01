@@ -579,6 +579,60 @@ textarea.inline-edit-input { resize: vertical; }
 .setup-checklist li { padding: 4px 0; font-size: 13px; }
 .setup-checklist li::before { content: "\2713 "; color: #16a34a; font-weight: 700; margin-right: 6px; }
 
+/* Setup — Architecture diagram */
+.setup-arch-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+.setup-arch-title { font-size: 13px; font-weight: 700; color: #374151; margin-bottom: 10px; text-align: center; }
+.setup-arch-diagram { display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap; }
+.setup-arch-node { background: #fff; border: 2px solid #d1d5db; border-radius: 10px; padding: 12px 20px; text-align: center; min-width: 160px; }
+.setup-arch-node-server { border-color: #3b82f6; background: #eff6ff; }
+.setup-arch-node-label { font-size: 14px; font-weight: 700; color: #111827; }
+.setup-arch-node-desc { font-size: 12px; color: #6b7280; margin-top: 2px; }
+.setup-arch-arrow { font-size: 24px; color: #3b82f6; font-weight: 700; }
+
+/* Setup — OS tabs */
+.setup-os-tabs { display: flex; gap: 0; margin: 16px 0 0; border-bottom: 2px solid #e5e7eb; }
+.setup-os-tab { background: none; border: none; padding: 8px 20px; font-size: 14px; font-weight: 600; color: #6b7280; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.15s; }
+.setup-os-tab:hover { color: #374151; }
+.setup-os-tab.active { color: #3b82f6; border-bottom-color: #3b82f6; }
+.setup-os-content { padding-top: 16px; }
+
+/* Setup — Mode selector */
+.setup-mode-selector { margin-bottom: 16px; }
+.setup-mode-title { font-size: 13px; font-weight: 700; color: #374151; margin-bottom: 8px; }
+.setup-mode-cards { display: flex; gap: 10px; flex-wrap: wrap; }
+.setup-mode-card { flex: 1; min-width: 180px; padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; cursor: pointer; transition: all 0.15s; position: relative; }
+.setup-mode-card:hover { border-color: #93c5fd; }
+.setup-mode-card.active { border-color: #3b82f6; background: #eff6ff; }
+.setup-mode-card strong { font-size: 14px; color: #111827; display: block; margin-bottom: 4px; }
+.setup-mode-card-badge { position: absolute; top: -8px; right: 10px; background: #3b82f6; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+
+/* Setup — Small OS tabs (for import section) */
+.setup-os-tab-sm { background: none; border: 1px solid #d1d5db; padding: 4px 12px; font-size: 12px; font-weight: 600; color: #6b7280; cursor: pointer; border-radius: 6px 6px 0 0; }
+.setup-os-tab-sm:hover { color: #374151; }
+.setup-os-tab-sm.active { background: #1e293b; color: #e2e8f0; border-color: #1e293b; }
+
+/* Setup — page wider for comprehensive guide */
+.setup-page { max-width: 720px; margin: 0 auto; }
+
+@media (max-width: 600px) {
+    .setup-arch-diagram { flex-direction: column; }
+    .setup-arch-arrow { transform: rotate(90deg); }
+    .setup-mode-cards { flex-direction: column; }
+}
+
+/* Setup — tmux guide */
+.tmux-guide-subtitle { font-size: 14px; font-weight: 700; color: #374151; margin: 20px 0 10px; padding-bottom: 6px; border-bottom: 2px solid #e5e7eb; }
+.tmux-cmd-table { border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; margin-bottom: 14px; font-size: 13px; }
+.tmux-cmd-row { display: flex; border-bottom: 1px solid #f3f4f6; }
+.tmux-cmd-row:last-child { border-bottom: none; }
+.tmux-cmd-header { background: #f8fafc; font-weight: 700; color: #374151; }
+.tmux-cmd-col-cmd { width: 220px; padding: 8px 12px; flex-shrink: 0; border-right: 1px solid #f3f4f6; background: #fafbfc; }
+.tmux-cmd-col-desc { flex: 1; padding: 8px 12px; color: #4b5563; }
+@media (max-width: 600px) {
+    .tmux-cmd-col-cmd { width: 140px; font-size: 11px; }
+    .tmux-cmd-col-desc { font-size: 12px; }
+}
+
 /* GitHub Sync */
 .github-token-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
 .github-token-field { display: flex; flex-direction: column; flex: 1; min-width: 140px; }
@@ -797,3 +851,14 @@ textarea.inline-edit-input { resize: vertical; }
 @media (max-width: 768px) {
     .todo-modal-body { width: 98vw; max-height: 90vh; }
 }
+
+/* Hook Alert */
+.hook-alert { background: #fef2f2; border: 1px solid #fca5a5; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; animation: hook-pulse 2s ease-in-out infinite; }
+.hook-alert-content { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.hook-alert-icon { font-size: 22px; flex-shrink: 0; }
+.hook-alert-text { flex: 1; font-size: 13px; color: #991b1b; }
+.hook-alert-text strong { display: block; font-size: 14px; margin-bottom: 2px; }
+.hook-alert-detail { display: block; font-size: 12px; color: #b91c1c; opacity: 0.8; margin-top: 2px; }
+.hook-alert-btn { background: #dc2626; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.hook-alert-btn:hover { background: #b91c1c; }
+@keyframes hook-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.15); } 50% { box-shadow: 0 0 0 6px rgba(220,38,38,0); } }

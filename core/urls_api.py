@@ -18,6 +18,7 @@ urlpatterns = [
     path('todos/<int:pk>/', views_api.project_todo_detail, name='api-todo-detail'),
     path('projects/<int:pk>/delete/', views_api.delete_project, name='api-delete-project'),
     path('stats/', views_api.stats_api, name='api-stats'),
+    path('hooks/health/', views_api.hooks_health, name='api-hooks-health'),
     path('hook/prompt/', views_api.hook_prompt, name='api-hook-prompt'),
     path('hook/stop/', views_api.hook_stop, name='api-hook-stop'),
     path('hook/import/', views_api.hook_import, name='api-hook-import'),

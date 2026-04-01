@@ -21,7 +21,7 @@ import os
 
 # Add parent directory to path for shared import
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from shared import get_db, ensure_tables, resolve_project_by_path, ensure_session, auto_detect_github_url, redis_publish, remote_post
+from shared import get_db, ensure_tables, resolve_project_by_path, ensure_session, auto_detect_github_url, redis_publish, remote_post, backup_hooks_settings
 
 
 def main():
@@ -73,6 +73,12 @@ def main():
         conn.close()
     except Exception:
         pass  # Never block Claude Code
+
+    # Backup settings.json (proof that hooks are alive)
+    try:
+        backup_hooks_settings()
+    except Exception:
+        pass
 
     # Sync to remote server if configured (CPM_REMOTE_SERVER env)
     try:

@@ -177,6 +177,93 @@ def remote_post(endpoint: str, data: dict):
         pass  # Never block Claude Code
 
 
+def backup_hooks_settings():
+    """Backup settings.json when hooks are confirmed working.
+    Called from on_prompt.py — if this runs, hooks are alive."""
+    try:
+        settings_path = Path.home() / '.claude' / 'settings.json'
+        backup_path = Path.home() / '.claude' / 'settings.hooks.backup.json'
+        if not settings_path.exists():
+            return
+        with open(settings_path, 'r') as f:
+            data = json.load(f)
+        # Only backup if hooks section exists and has CPM entries
+        hooks = data.get('hooks', {})
+        has_cpm = any(
+            'cpm' in h.get('command', '').lower()
+            for event_hooks in hooks.values()
+            for entry in (event_hooks if isinstance(event_hooks, list) else [])
+            for h in entry.get('hooks', [])
+        )
+        if has_cpm:
+            with open(backup_path, 'w') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass  # Never block Claude Code
+
+
+def check_hooks_health() -> dict:
+    """Check if CPM hooks are registered in settings.json.
+    Returns: {'ok': bool, 'prompt_hook': bool, 'stop_hook': bool, 'backup_exists': bool}
+    """
+    result = {'ok': False, 'prompt_hook': False, 'stop_hook': False, 'backup_exists': False}
+    try:
+        settings_path = Path.home() / '.claude' / 'settings.json'
+        backup_path = Path.home() / '.claude' / 'settings.hooks.backup.json'
+        result['backup_exists'] = backup_path.exists()
+
+        if not settings_path.exists():
+            return result
+
+        with open(settings_path, 'r') as f:
+            data = json.load(f)
+
+        hooks = data.get('hooks', {})
+        for entry in hooks.get('UserPromptSubmit', []):
+            for h in entry.get('hooks', []):
+                if 'on_prompt' in h.get('command', ''):
+                    result['prompt_hook'] = True
+        for entry in hooks.get('Stop', []):
+            for h in entry.get('hooks', []):
+                if 'on_stop' in h.get('command', ''):
+                    result['stop_hook'] = True
+
+        result['ok'] = result['prompt_hook'] and result['stop_hook']
+    except Exception:
+        pass
+    return result
+
+
+def restore_hooks_from_backup() -> bool:
+    """Restore hooks from backup file. Returns True if successful."""
+    try:
+        settings_path = Path.home() / '.claude' / 'settings.json'
+        backup_path = Path.home() / '.claude' / 'settings.hooks.backup.json'
+        if not backup_path.exists():
+            return False
+
+        with open(backup_path, 'r') as f:
+            backup_data = json.load(f)
+
+        backup_hooks = backup_data.get('hooks', {})
+        if not backup_hooks:
+            return False
+
+        # Load current settings (preserve non-hook settings)
+        current_data = {}
+        if settings_path.exists():
+            with open(settings_path, 'r') as f:
+                current_data = json.load(f)
+
+        current_data['hooks'] = backup_hooks
+
+        with open(settings_path, 'w') as f:
+            json.dump(current_data, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception:
+        return False
+
+
 def redis_publish(channel: str, data: dict):
     """Publish to Redis if available. Silently skip if Redis is not running."""
     try:

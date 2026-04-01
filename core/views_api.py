@@ -297,6 +297,22 @@ def stats_api(request):
     })
 
 
+@api_view(['GET', 'POST'])
+def hooks_health(request):
+    """Check or restore CPM hooks in settings.json."""
+    import sys
+    sys.path.insert(0, str(settings.CPM_HOOKS_DIR))
+    from shared import check_hooks_health, restore_hooks_from_backup
+
+    if request.method == 'POST':
+        # Restore hooks from backup
+        success = restore_hooks_from_backup()
+        health = check_hooks_health()
+        return Response({'restored': success, **health})
+
+    return Response(check_hooks_health())
+
+
 # Common port → service name mapping
 COMMON_PORTS = {
     22: 'SSH', 80: 'HTTP', 443: 'HTTPS', 3000: 'Node.js', 3306: 'MySQL',

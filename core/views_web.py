@@ -68,6 +68,12 @@ def dashboard(request):
     today = date.today()
     today_count = Prompt.objects.filter(created_at__date=today).count()
 
+    # Hook health check
+    import sys
+    sys.path.insert(0, str(settings.CPM_HOOKS_DIR))
+    from shared import check_hooks_health
+    hooks_health = check_hooks_health()
+
     context = {
         'projects': projects,
         'total': total,
@@ -79,6 +85,8 @@ def dashboard(request):
         'hook_count': Prompt.objects.filter(source='hook').count(),
         'import_count': Prompt.objects.filter(source='import').count(),
         'services': services,
+        'hooks_ok': hooks_health['ok'],
+        'hooks_health': hooks_health,
     }
     return render(request, 'dashboard.html', context)
 
@@ -382,61 +390,308 @@ def download_hook(request, filename):
     scheme = 'https' if request.is_secure() else 'http'
     server_url = f'{scheme}://{host}'
 
-    if filename == 'cpm-hooks.zip':
-        # Build zip with both hook files + settings.json template
+    def _replace_server(content):
+        return content.replace(
+            "CPM_SERVER = os.environ.get('CPM_SERVER', 'http://localhost:9200')",
+            f"CPM_SERVER = os.environ.get('CPM_SERVER', '{server_url}')"
+        )
+
+    if filename == 'cpm-hooks-windows.zip':
+        # Windows zip: remote-only hooks (no local DB)
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
             for fname in ['on_prompt_remote.py', 'on_stop_remote.py', 'import_history.py']:
                 hook_path = Path(settings.BASE_DIR) / 'hooks' / fname
                 if hook_path.exists():
-                    content = hook_path.read_text(encoding='utf-8')
-                    content = content.replace(
-                        "CPM_SERVER = os.environ.get('CPM_SERVER', 'http://localhost:9200')",
-                        f"CPM_SERVER = os.environ.get('CPM_SERVER', '{server_url}')"
-                    )
-                    zf.writestr(f'cpm/{fname}', content)
+                    zf.writestr(f'cpm-hooks/{fname}', _replace_server(hook_path.read_text(encoding='utf-8')))
 
-            # Include a ready-to-use settings.json
+            # settings.json for Windows
             settings_json = json.dumps({
                 "hooks": {
                     "UserPromptSubmit": [{
-                        "type": "command",
-                        "command": "python C:\\cpm\\on_prompt_remote.py"
+                        "matcher": "",
+                        "hooks": [{"type": "command", "command": "python C:\\cpm-hooks\\on_prompt_remote.py"}]
                     }],
                     "Stop": [{
-                        "type": "command",
-                        "command": "python C:\\cpm\\on_stop_remote.py"
+                        "matcher": "",
+                        "hooks": [{"type": "command", "command": "python C:\\cpm-hooks\\on_stop_remote.py"}]
                     }]
                 }
             }, indent=2, ensure_ascii=False)
-            zf.writestr('cpm/settings.json', settings_json)
+            zf.writestr('cpm-hooks/settings.json', settings_json)
 
-            # README
-            readme = f"""CPM Remote Hooks
-================
+            readme = f"""CPM Remote Hooks — Windows Setup
+=================================
 
-1. cpm 폴더를 C:\\ 에 복사  ->  C:\\cpm\\
-2. settings.json 을 %USERPROFILE%\\.claude\\ 에 복사
-   (Windows Terminal에서 실행하는 Claude Code CLI 설정 위치)
-3. Claude Code 재시작하면 자동 기록!
+[한국어 안내]
 
-기존 기록 가져오기:
-  python C:\\cpm\\import_history.py
+이 패키지는 Windows PC에서 Claude Code 프롬프트를
+원격 CPM 서버({server_url})로 자동 전송하는 hook 파일입니다.
+
+━━━ 설치 방법 ━━━
+
+1단계: 파일 복사
+  - cpm-hooks 폴더를 C:\\ 에 복사 → C:\\cpm-hooks\\
+
+2단계: hooks 설정
+  - settings.json을 아래 위치에 복사:
+    %USERPROFILE%\\.claude\\settings.json
+  - 이미 settings.json이 있으면 "hooks" 부분만 병합
+
+3단계: Claude Code 재시작
+  - 터미널을 닫고 다시 열면 자동 적용
+
+━━━ 기존 기록 가져오기 ━━━
+
+  python C:\\cpm-hooks\\import_history.py
+
+  - ~/.claude/projects/ 아래 세션 기록과 history.jsonl을 읽어서 서버에 전송
+  - 이미 전송된 기록은 자동 건너뜀 (중복 방지)
+  - 한 번만 실행하면 됩니다
+
+━━━ 파일 설명 ━━━
+
+  on_prompt_remote.py  — 프롬프트 전송 hook (UserPromptSubmit)
+  on_stop_remote.py    — 응답 완료 전송 hook (Stop)
+  import_history.py    — 기존 Claude Code 기록 일괄 전송
+  settings.json        — Claude Code hooks 설정 파일
+
+━━━ 문제 해결 ━━━
+
+  - Python 설치 확인: python --version
+  - 서버 접속 확인: 브라우저에서 {server_url} 열기
+  - 경로 확인: C:\\cpm-hooks\\on_prompt_remote.py 파일 존재 확인
+  - 방화벽: 서버 포트(9200) 열려있는지 확인
 
 서버: {server_url}
-
-* Python이 설치되어 있어야 합니다.
-* 이미 settings.json이 있으면 hooks 부분만 합쳐주세요.
 """
-            zf.writestr('cpm/README.txt', readme)
+            zf.writestr('cpm-hooks/README.txt', readme)
 
+        buf.seek(0)
+        response = HttpResponse(buf.read(), content_type='application/zip')
+        response['Content-Disposition'] = 'attachment; filename="cpm-hooks-windows.zip"'
+        return response
+
+    elif filename == 'cpm-hooks-linux.zip':
+        # Linux zip: full hooks with local DB + remote sync
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # Full hooks (local + remote)
+            for fname in ['on_prompt.py', 'on_stop.py', 'shared.py']:
+                hook_path = Path(settings.BASE_DIR) / 'hooks' / fname
+                if hook_path.exists():
+                    zf.writestr(f'cpm-hooks/{fname}', hook_path.read_text(encoding='utf-8'))
+
+            # Remote-only hooks (alternative)
+            for fname in ['remote_hook.py', 'on_prompt_remote.py', 'on_stop_remote.py']:
+                hook_path = Path(settings.BASE_DIR) / 'hooks' / fname
+                if hook_path.exists():
+                    zf.writestr(f'cpm-hooks/remote-only/{fname}', _replace_server(hook_path.read_text(encoding='utf-8')))
+
+            # Import tools
+            for fname in ['import_history.py', 'sync_to_remote.py']:
+                hook_path = Path(settings.BASE_DIR) / 'hooks' / fname
+                if hook_path.exists():
+                    zf.writestr(f'cpm-hooks/{fname}', _replace_server(hook_path.read_text(encoding='utf-8')))
+
+            # settings.json for Linux (Mode A: local + remote)
+            settings_a = json.dumps({
+                "hooks": {
+                    "UserPromptSubmit": [{
+                        "matcher": "",
+                        "hooks": [{"type": "command", "command": "python3 ~/cpm-hooks/on_prompt.py"}]
+                    }],
+                    "Stop": [{
+                        "matcher": "",
+                        "hooks": [{"type": "command", "command": "python3 ~/cpm-hooks/on_stop.py"}]
+                    }]
+                }
+            }, indent=2, ensure_ascii=False)
+            zf.writestr('cpm-hooks/settings-local-remote.json', settings_a)
+
+            # settings.json for Linux (Mode B: remote only)
+            settings_b = json.dumps({
+                "hooks": {
+                    "UserPromptSubmit": [{
+                        "matcher": "",
+                        "hooks": [{"type": "command", "command": "python3 ~/cpm-hooks/remote-only/remote_hook.py prompt"}]
+                    }],
+                    "Stop": [{
+                        "matcher": "",
+                        "hooks": [{"type": "command", "command": "python3 ~/cpm-hooks/remote-only/remote_hook.py stop"}]
+                    }]
+                }
+            }, indent=2, ensure_ascii=False)
+            zf.writestr('cpm-hooks/settings-remote-only.json', settings_b)
+
+            # setup.sh — auto install script
+            setup_sh = f"""#!/bin/bash
+# CPM Hooks 자동 설치 스크립트
+# 사용법: bash setup.sh
+
+set -e
+
+SERVER="{server_url}"
+HOOK_DIR="$HOME/cpm-hooks"
+CLAUDE_DIR="$HOME/.claude"
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  CPM Hooks Installer (Linux)"
+echo "  서버: $SERVER"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+# 1. hooks 파일 복사
+echo "[1/4] Hook 파일 설치..."
+mkdir -p "$HOOK_DIR"
+cp -r ./*.py "$HOOK_DIR/" 2>/dev/null || true
+cp -r ./remote-only "$HOOK_DIR/" 2>/dev/null || true
+chmod +x "$HOOK_DIR"/*.py
+echo "  → $HOOK_DIR/"
+
+# 2. 환경변수 설정
+echo "[2/4] 환경변수 설정..."
+SHELL_RC="$HOME/.bashrc"
+if [ -n "$ZSH_VERSION" ] || [ -f "$HOME/.zshrc" ]; then
+    SHELL_RC="$HOME/.zshrc"
+fi
+
+if ! grep -q "CPM_REMOTE_SERVER" "$SHELL_RC" 2>/dev/null; then
+    echo "" >> "$SHELL_RC"
+    echo "# CPM Remote Server" >> "$SHELL_RC"
+    echo "export CPM_REMOTE_SERVER=$SERVER" >> "$SHELL_RC"
+    echo "  → $SHELL_RC 에 CPM_REMOTE_SERVER=$SERVER 추가됨"
+else
+    echo "  → 이미 설정됨 (skip)"
+fi
+export CPM_REMOTE_SERVER=$SERVER
+
+# 3. Claude Code hooks 설정
+echo "[3/4] Claude Code hooks 설정..."
+mkdir -p "$CLAUDE_DIR"
+SETTINGS="$CLAUDE_DIR/settings.json"
+
+if [ ! -f "$SETTINGS" ]; then
+    cp settings-local-remote.json "$SETTINGS" 2>/dev/null || true
+    echo "  → $SETTINGS 생성됨"
+else
+    echo "  → $SETTINGS 이미 존재"
+    echo "    수동으로 hooks 부분을 병합해주세요."
+    echo "    참고: settings-local-remote.json"
+fi
+
+# 4. 연결 테스트
+echo "[4/4] 서버 연결 테스트..."
+if python3 -c "import urllib.request; urllib.request.urlopen('$SERVER/api/', timeout=5)" 2>/dev/null; then
+    echo "  → 연결 성공!"
+else
+    echo "  → 연결 실패. 서버 주소/방화벽 확인 필요"
+fi
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  설치 완료!"
+echo ""
+echo "  기존 기록 가져오기:"
+echo "    python3 $HOOK_DIR/import_history.py"
+echo ""
+echo "  Claude Code를 재시작하면 자동 기록됩니다."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+"""
+            zf.writestr('cpm-hooks/setup.sh', setup_sh)
+
+            readme = f"""CPM Remote Hooks — Linux Setup
+================================
+
+[한국어 안내]
+
+이 패키지는 Linux PC에서 Claude Code 프롬프트를
+원격 CPM 서버({server_url})로 자동 전송하는 hook 파일입니다.
+
+━━━ 자동 설치 (권장) ━━━
+
+  cd cpm-hooks
+  bash setup.sh
+
+━━━ 수동 설치 ━━━
+
+1단계: 파일 복사
+  cp -r cpm-hooks ~/cpm-hooks
+
+2단계: 환경변수 설정 (~/.bashrc 또는 ~/.zshrc)
+  export CPM_REMOTE_SERVER={server_url}
+
+3단계: Claude Code hooks 설정
+  cp ~/cpm-hooks/settings-local-remote.json ~/.claude/settings.json
+  (이미 settings.json이 있으면 "hooks" 부분만 병합)
+
+4단계: Claude Code 재시작
+
+━━━ 모드 선택 ━━━
+
+  A) 로컬 저장 + 원격 전송 (settings-local-remote.json)
+     - 로컬 DB에도 저장하고 서버에도 전송
+     - CPM_REMOTE_SERVER 환경변수 필요
+     - 파일: on_prompt.py, on_stop.py, shared.py
+
+  B) 원격 전용 (settings-remote-only.json)
+     - 서버에만 전송 (로컬 DB 없음)
+     - 파일: remote-only/remote_hook.py
+
+━━━ 기존 기록 가져오기 ━━━
+
+  python3 ~/cpm-hooks/import_history.py
+
+  또는 로컬 DB가 있는 경우:
+  python3 ~/cpm-hooks/sync_to_remote.py {server_url}
+
+━━━ 파일 설명 ━━━
+
+  on_prompt.py        — 로컬+원격 프롬프트 hook
+  on_stop.py          — 로컬+원격 응답 hook
+  shared.py           — 공유 유틸리티 (DB, Redis, remote_post)
+  import_history.py   — Claude Code 기록 일괄 전송
+  sync_to_remote.py   — 로컬 DB → 서버 동기화
+  setup.sh            — 자동 설치 스크립트
+  remote-only/        — 원격 전용 hook 파일들
+
+서버: {server_url}
+"""
+            zf.writestr('cpm-hooks/README.txt', readme)
+
+        buf.seek(0)
+        response = HttpResponse(buf.read(), content_type='application/zip')
+        response['Content-Disposition'] = 'attachment; filename="cpm-hooks-linux.zip"'
+        return response
+
+    elif filename == 'cpm-hooks.zip':
+        # Legacy: redirect to Windows zip for backward compat
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for fname in ['on_prompt_remote.py', 'on_stop_remote.py', 'import_history.py']:
+                hook_path = Path(settings.BASE_DIR) / 'hooks' / fname
+                if hook_path.exists():
+                    zf.writestr(f'cpm-hooks/{fname}', _replace_server(hook_path.read_text(encoding='utf-8')))
+            settings_json = json.dumps({
+                "hooks": {
+                    "UserPromptSubmit": [{
+                        "matcher": "",
+                        "hooks": [{"type": "command", "command": "python C:\\cpm-hooks\\on_prompt_remote.py"}]
+                    }],
+                    "Stop": [{
+                        "matcher": "",
+                        "hooks": [{"type": "command", "command": "python C:\\cpm-hooks\\on_stop_remote.py"}]
+                    }]
+                }
+            }, indent=2, ensure_ascii=False)
+            zf.writestr('cpm-hooks/settings.json', settings_json)
         buf.seek(0)
         response = HttpResponse(buf.read(), content_type='application/zip')
         response['Content-Disposition'] = 'attachment; filename="cpm-hooks.zip"'
         return response
 
     # Single file download (fallback)
-    allowed = {'on_prompt_remote.py', 'on_stop_remote.py'}
+    allowed = {'on_prompt_remote.py', 'on_stop_remote.py', 'remote_hook.py', 'import_history.py', 'sync_to_remote.py'}
     if filename not in allowed:
         return HttpResponse('Not found', status=404)
 
@@ -445,10 +700,7 @@ def download_hook(request, filename):
         return HttpResponse('File not found', status=404)
 
     content = hook_path.read_text(encoding='utf-8')
-    content = content.replace(
-        "CPM_SERVER = os.environ.get('CPM_SERVER', 'http://localhost:9200')",
-        f"CPM_SERVER = os.environ.get('CPM_SERVER', '{server_url}')"
-    )
+    content = _replace_server(content)
 
     response = HttpResponse(content, content_type='text/plain; charset=utf-8')
     response['Content-Disposition'] = f'attachment; filename="{filename}"'

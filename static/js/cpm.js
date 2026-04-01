@@ -838,4 +838,28 @@
         });
     };
 
+    // Hook restore
+    window.restoreHooks = function() {
+        if (!confirm('백업에서 hooks를 복구하시겠습니까?')) return;
+        var btn = document.getElementById('hook-restore-btn');
+        if (btn) { btn.disabled = true; btn.textContent = '복구 중...'; }
+        apiFetch('/api/hooks/health/', { method: 'POST' })
+            .then(function(data) {
+                if (data.restored && data.ok) {
+                    alert('Hooks 복구 완료! 새 Claude Code 세션부터 적용됩니다.');
+                    var el = document.getElementById('hook-alert');
+                    if (el) el.style.display = 'none';
+                } else if (data.restored) {
+                    alert('복구했지만 일부 hook이 누락되었습니다. cpm_setup을 실행하세요.');
+                    location.reload();
+                } else {
+                    alert('복구 실패. python3 manage.py cpm_setup 을 실행하세요.');
+                }
+            })
+            .catch(function() {
+                alert('복구 실패. python3 manage.py cpm_setup 을 실행하세요.');
+                if (btn) { btn.disabled = false; btn.textContent = '백업에서 복구'; }
+            });
+    };
+
 })();
