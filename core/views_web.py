@@ -7,7 +7,12 @@ from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, HttpResponse
 from django.db.models import Count, Q, Max, Min, Sum, Exists, OuterRef
 from django.db.models.functions import TruncHour, TruncDate
-from .models import Project, ProjectScreenshot, Terminal, Prompt, Template, Session, ServicePort, Execution
+from .models import (
+    Project, ProjectScreenshot, Terminal, Prompt, Template, Session,
+    ServicePort, Execution, UserProfile, Follow,
+    ServerIdentity, FederatedServer, FederatedSubscription, FederatedPrompt,
+)
+from .permissions import visible_projects_queryset, can_view_project
 
 
 def _format_tokens(n):
@@ -36,8 +41,50 @@ def _attach_working_days(projects):
 
 
 def dashboard(request):
-    """Main dashboard with overview stats."""
-    projects = Project.objects.prefetch_related('screenshots', 'todos').annotate(
+    """Main dashboard with overview stats and user tabs."""
+    user = request.user
+    tab = request.GET.get('tab', '')
+
+    # Base queryset respecting visibility
+    base_qs = visible_projects_queryset(user)
+
+    # Tab filtering
+    if user.is_authenticated:
+        if not tab:
+            tab = 'mine'
+        if tab == 'mine':
+            projects_qs = base_qs.filter(owner=user)
+        elif tab == 'friends':
+            friend_ids = list(
+                Follow.objects.filter(follower=user).values_list('following_id', flat=True)
+            )
+            mutual_ids = list(
+                Follow.objects.filter(follower_id__in=friend_ids, following=user)
+                .values_list('follower_id', flat=True)
+            )
+            projects_qs = base_qs.filter(owner_id__in=mutual_ids).exclude(owner=user)
+        else:  # community
+            tab = 'community'
+            projects_qs = base_qs.filter(visibility='public')
+    else:
+        tab = 'community'
+        projects_qs = base_qs
+
+    # Tab counts
+    tab_counts = {}
+    if user.is_authenticated:
+        tab_counts['mine'] = base_qs.filter(owner=user).count()
+        tab_counts['community'] = base_qs.filter(visibility='public').count()
+        friend_ids = list(
+            Follow.objects.filter(follower=user).values_list('following_id', flat=True)
+        )
+        mutual_ids = list(
+            Follow.objects.filter(follower_id__in=friend_ids, following=user)
+            .values_list('follower_id', flat=True)
+        )
+        tab_counts['friends'] = base_qs.filter(owner_id__in=mutual_ids).exclude(owner=user).count()
+
+    projects = projects_qs.prefetch_related('screenshots', 'todos').annotate(
         prompt_count=Count('prompts', distinct=True),
         latest_at=Max('prompts__created_at'),
         hook_prompt_count=Count('prompts', filter=Q(prompts__source__in=['hook', 'import']), distinct=True),
@@ -64,9 +111,15 @@ def dashboard(request):
 
     services = ServicePort.objects.select_related('project').all()
 
-    # Today's prompts
+    # Period prompt counts (today / yesterday / last 7 days / last 30 days)
     today = date.today()
+    yesterday = today - timedelta(days=1)
+    week_start = today - timedelta(days=6)   # last 7 days inclusive
+    month_start = today - timedelta(days=29)  # last 30 days inclusive
     today_count = Prompt.objects.filter(created_at__date=today).count()
+    yesterday_count = Prompt.objects.filter(created_at__date=yesterday).count()
+    week_count = Prompt.objects.filter(created_at__date__gte=week_start, created_at__date__lte=today).count()
+    month_count = Prompt.objects.filter(created_at__date__gte=month_start, created_at__date__lte=today).count()
 
     # Hook health check
     import sys
@@ -82,11 +135,16 @@ def dashboard(request):
         'total_tokens_display': _format_tokens(total_tokens),
         'recent_prompts': recent_prompts,
         'today_count': today_count,
+        'yesterday_count': yesterday_count,
+        'week_count': week_count,
+        'month_count': month_count,
         'hook_count': Prompt.objects.filter(source='hook').count(),
         'import_count': Prompt.objects.filter(source='import').count(),
         'services': services,
         'hooks_ok': hooks_health['ok'],
         'hooks_health': hooks_health,
+        'tab': tab,
+        'tab_counts': tab_counts,
     }
     return render(request, 'dashboard.html', context)
 
@@ -105,6 +163,10 @@ def project_list(request):
 def project_detail(request, pk):
     project = get_object_or_404(Project, pk=pk)
 
+    if not can_view_project(request.user, project):
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden('This project is private.')
+
     # Sort
     sort = request.GET.get('sort', 'desc')
     order = 'created_at' if sort == 'asc' else '-created_at'
@@ -120,6 +182,12 @@ def project_detail(request, pk):
     source = request.GET.get('source')
     if source:
         prompts = prompts.filter(source=source)
+    tmux = request.GET.get('tmux', '').strip()
+    if tmux:
+        if tmux == '__none__':
+            prompts = prompts.filter(Q(tmux_session__isnull=True) | Q(tmux_session=''))
+        else:
+            prompts = prompts.filter(tmux_session=tmux)
 
     # In-project search
     q = request.GET.get('q', '').strip()
@@ -189,6 +257,24 @@ def project_detail(request, pk):
     today_count = project.prompts.filter(created_at__date=today).count()
     hook_count = project.prompts.filter(source__in=['hook', 'import']).count()
 
+    # tmux sub-categories for this project
+    tmux_groups_qs = (
+        project.prompts
+        .values('tmux_session')
+        .annotate(count=Count('id'))
+        .order_by('-count')
+    )
+    tmux_groups = []
+    unknown_count = 0
+    for r in tmux_groups_qs:
+        name = r['tmux_session']
+        if not name:
+            unknown_count += r['count']
+            continue
+        tmux_groups.append({'name': name, 'count': r['count']})
+    if unknown_count:
+        tmux_groups.append({'name': '', 'count': unknown_count, 'unknown': True})
+
     context = {
         'project': project,
         'prompts': prompts_page,
@@ -205,6 +291,8 @@ def project_detail(request, pk):
         'current_status': status or '',
         'current_tag': tag or '',
         'current_source': source or '',
+        'current_tmux': tmux,
+        'tmux_groups': tmux_groups,
         'current_q': q,
         'sort': sort,
         'md_files': md_files,
@@ -859,3 +947,169 @@ def statistics(request):
         'recent_prompts': recent_prompts,
     }
     return render(request, 'statistics.html', context)
+
+
+# ── User pages ──
+
+def user_profile(request, username):
+    """Public user profile page."""
+    from django.contrib.auth.models import User
+    profile = get_object_or_404(UserProfile, github_username=username)
+    profile_user = profile.user
+
+    # Projects visible to current viewer
+    projects_qs = visible_projects_queryset(request.user).filter(owner=profile_user)
+    projects = projects_qs.annotate(
+        prompt_count=Count('prompts'),
+        latest_at=Max('prompts__created_at'),
+    ).order_by('-latest_at')
+    _attach_working_days(projects)
+
+    # Follow status
+    is_following = False
+    is_friend = False
+    if request.user.is_authenticated and request.user != profile_user:
+        is_following = Follow.objects.filter(follower=request.user, following=profile_user).exists()
+        is_friend = is_following and Follow.objects.filter(follower=profile_user, following=request.user).exists()
+
+    follower_count = Follow.objects.filter(following=profile_user).count()
+    following_count = Follow.objects.filter(follower=profile_user).count()
+
+    context = {
+        'profile': profile,
+        'profile_user': profile_user,
+        'projects': projects,
+        'is_following': is_following,
+        'is_friend': is_friend,
+        'follower_count': follower_count,
+        'following_count': following_count,
+    }
+    return render(request, 'user_profile.html', context)
+
+
+def follow_user(request, username):
+    """Follow a user."""
+    from django.shortcuts import redirect
+    if not request.user.is_authenticated:
+        return redirect('github_login')
+    target_profile = get_object_or_404(UserProfile, github_username=username)
+    if request.user != target_profile.user:
+        Follow.objects.get_or_create(follower=request.user, following=target_profile.user)
+    return redirect('user-profile', username=username)
+
+
+def unfollow_user(request, username):
+    """Unfollow a user."""
+    from django.shortcuts import redirect
+    if not request.user.is_authenticated:
+        return redirect('github_login')
+    target_profile = get_object_or_404(UserProfile, github_username=username)
+    Follow.objects.filter(follower=request.user, following=target_profile.user).delete()
+    return redirect('user-profile', username=username)
+
+
+def user_settings(request):
+    """User settings page (API token, bio)."""
+    from django.shortcuts import redirect
+    if not request.user.is_authenticated:
+        return redirect('github_login')
+
+    profile = request.user.profile
+
+    if request.method == 'POST':
+        action = request.POST.get('action', '')
+        if action == 'update_bio':
+            profile.bio = request.POST.get('bio', '').strip()[:500]
+            profile.save(update_fields=['bio', 'updated_at'])
+        elif action == 'regenerate_token':
+            profile.regenerate_token()
+        return redirect('user-settings')
+
+    context = {
+        'profile': profile,
+    }
+    return render(request, 'user_settings.html', context)
+
+
+# ── Federation page ──
+
+def federation_page(request):
+    """Federation page with Servers / Feed / Explore tabs."""
+    tab = request.GET.get('tab', 'feed')
+
+    identity = ServerIdentity.get_instance()
+    servers = FederatedServer.objects.all()
+    subscriptions = FederatedSubscription.objects.filter(is_active=True).select_related('server')
+
+    # Feed: local public prompts + federated prompts merged
+    local_prompts = Prompt.objects.filter(
+        project__visibility='public',
+    ).select_related('project', 'project__owner').order_by('-created_at')[:50]
+
+    fed_prompts = FederatedPrompt.objects.select_related(
+        'subscription__server', 'remote_user',
+    ).order_by('-remote_created_at')[:50]
+
+    # Merge into unified feed
+    feed_items = []
+    for p in local_prompts:
+        owner_name = ''
+        avatar_url = ''
+        if p.project.owner and hasattr(p.project.owner, 'profile'):
+            try:
+                owner_name = p.project.owner.profile.github_username
+                avatar_url = p.project.owner.profile.avatar_url
+            except Exception:
+                pass
+        feed_items.append({
+            'type': 'local',
+            'id': p.id,
+            'content': p.content[:300],
+            'response_summary': (p.response_summary or '')[:200],
+            'status': p.status,
+            'tag': p.tag or '',
+            'project_name': p.project.name,
+            'project_id': p.project.id,
+            'server_name': identity.server_name if identity else 'Local',
+            'owner': owner_name,
+            'avatar_url': avatar_url,
+            'created_at': p.created_at,
+            'tmux_session': p.tmux_session or '',
+        })
+    for fp in fed_prompts:
+        feed_items.append({
+            'type': 'remote',
+            'id': fp.id,
+            'content': fp.content[:300],
+            'response_summary': (fp.response_summary or '')[:200],
+            'status': fp.status,
+            'tag': fp.tag,
+            'project_name': fp.subscription.remote_project_name,
+            'project_id': None,
+            'server_name': fp.subscription.server.name or fp.subscription.server.url,
+            'owner': fp.remote_user.federated_id if fp.remote_user else '',
+            'avatar_url': '',
+            'created_at': fp.remote_created_at,
+            'tmux_session': '',
+        })
+
+    feed_items.sort(key=lambda x: x['created_at'], reverse=True)
+    feed_items = feed_items[:50]
+
+    # Is admin check
+    is_admin = False
+    if request.user.is_authenticated:
+        try:
+            is_admin = request.user.profile.is_admin
+        except UserProfile.DoesNotExist:
+            pass
+
+    context = {
+        'tab': tab,
+        'identity': identity,
+        'servers': servers,
+        'subscriptions': subscriptions,
+        'feed_items': feed_items,
+        'is_admin': is_admin,
+    }
+    return render(request, 'federation.html', context)

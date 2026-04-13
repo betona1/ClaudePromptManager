@@ -26,9 +26,36 @@ import urllib.error
 
 # === CONFIG ===
 CPM_SERVER = os.environ.get('CPM_SERVER', 'http://localhost:9200')
+CPM_API_TOKEN = os.environ.get('CPM_API_TOKEN', '')
 # ==============
 
 HOSTNAME = socket.gethostname()
+
+
+def _detect_tmux_session():
+    """Detect tmux/screen session name. Returns None when not in a multiplexer."""
+    try:
+        if os.environ.get('TMUX'):
+            try:
+                import subprocess
+                out = subprocess.check_output(
+                    ['tmux', 'display-message', '-p', '#S'],
+                    stderr=subprocess.DEVNULL, timeout=2
+                )
+                name = out.decode('utf-8', errors='replace').strip()
+                if name:
+                    return f'tmux:{name}'
+            except Exception:
+                pass
+            pane = os.environ.get('TMUX_PANE')
+            if pane:
+                return f'tmux-pane:{pane}'
+        sty = os.environ.get('STY')
+        if sty:
+            return f'screen:{sty}'
+    except Exception:
+        pass
+    return None
 
 
 def send_prompt():
@@ -51,13 +78,17 @@ def send_prompt():
         'session_id': session_id,
         'cwd': cwd,
         'hostname': HOSTNAME,
+        'tmux_session': _detect_tmux_session(),
     }).encode('utf-8')
 
     try:
+        headers = {'Content-Type': 'application/json'}
+        if CPM_API_TOKEN:
+            headers['Authorization'] = f'Bearer {CPM_API_TOKEN}'
         req = urllib.request.Request(
             f"{CPM_SERVER}/api/hook/prompt/",
             data=payload,
-            headers={'Content-Type': 'application/json'},
+            headers=headers,
             method='POST'
         )
         urllib.request.urlopen(req, timeout=5)
@@ -100,10 +131,13 @@ def send_stop():
     }).encode('utf-8')
 
     try:
+        headers = {'Content-Type': 'application/json'}
+        if CPM_API_TOKEN:
+            headers['Authorization'] = f'Bearer {CPM_API_TOKEN}'
         req = urllib.request.Request(
             f"{CPM_SERVER}/api/hook/stop/",
             data=payload,
-            headers={'Content-Type': 'application/json'},
+            headers=headers,
             method='POST'
         )
         urllib.request.urlopen(req, timeout=5)

@@ -38,5 +38,8 @@ urlpatterns = [
     path('telegram/bots/<int:pk>/test/', views_api.telegram_bot_test, name='api-telegram-bot-test'),
     path('telegram/bots/<int:pk>/chat-ids/add/', views_api.telegram_chat_id_add, name='api-telegram-chat-id-add'),
     path('telegram/chat-ids/<int:pk>/delete/', views_api.telegram_chat_id_delete, name='api-telegram-chat-id-delete'),
+    path('prompts/<int:pk>/comments/', views_api.prompt_comments, name='api-prompt-comments'),
+    path('auth/profile/', views_api.api_profile, name='api-auth-profile'),
+    path('auth/token/regenerate/', views_api.api_regenerate_token, name='api-auth-regenerate-token'),
     path('', include(router.urls)),
 ]

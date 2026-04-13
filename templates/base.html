@@ -19,11 +19,21 @@
                 <a href="{% url 'statistics' %}" {% if '/stats' in request.path %}class="active"{% endif %}>Stats</a>
                 <a href="{% url 'remote-execute' %}" {% if '/remote' in request.path %}class="active"{% endif %}>Remote</a>
                 <a href="{% url 'setup-guide' %}" {% if '/setup' in request.path %}class="active"{% endif %}>Setup</a>
+                <a href="{% url 'federation' %}" {% if '/federation' in request.path %}class="active"{% endif %}>Federation</a>
             </div>
             <div class="nav-right">
                 <form action="{% url 'search' %}" method="GET">
                     <input type="text" name="q" placeholder="Search prompts..." value="{{ q|default:'' }}" class="search-input">
                 </form>
+                {% if user.is_authenticated %}
+                <a href="{% url 'user-profile' user.profile.github_username %}" class="nav-avatar" title="@{{ user.profile.github_username }}">
+                    <img src="{{ user.profile.avatar_url }}" alt="">
+                </a>
+                <a href="{% url 'user-settings' %}" class="nav-link-sm">Settings</a>
+                <a href="{% url 'account_logout' %}" class="nav-link-sm">Logout</a>
+                {% else %}
+                <a href="{% url 'github_login' %}" class="nav-link-sm btn-login">Login with GitHub</a>
+                {% endif %}
                 <a href="{% url 'export' %}" class="nav-link-sm">Export</a>
                 <a href="/api/" class="nav-link-sm">API</a>
             </div>

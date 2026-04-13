@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}@{{ profile.github_username }}{% endblock %}
+
+{% block content %}
+<div class="profile-header">
+    <img src="{{ profile.avatar_url }}" alt="" class="profile-avatar">
+    <div class="profile-info">
+        <div class="profile-name">{{ profile_user.get_full_name|default:profile.github_username }}</div>
+        <div class="profile-username">@{{ profile.github_username }}</div>
+        {% if profile.bio %}<div class="profile-bio">{{ profile.bio }}</div>{% endif %}
+        <div class="profile-stats">
+            <span><strong>{{ projects|length }}</strong> projects</span>
+            <span><strong>{{ follower_count }}</strong> followers</span>
+            <span><strong>{{ following_count }}</strong> following</span>
+        </div>
+    </div>
+    {% if user.is_authenticated and user != profile_user %}
+    <div>
+        {% if is_following %}
+        <form action="{% url 'unfollow-user' profile.github_username %}" method="POST" style="display:inline;">
+            {% csrf_token %}
+            <button class="btn-unfollow" type="submit">{% if is_friend %}Friends{% else %}Following{% endif %}</button>
+        </form>
+        {% else %}
+        <form action="{% url 'follow-user' profile.github_username %}" method="POST" style="display:inline;">
+            {% csrf_token %}
+            <button class="btn-follow" type="submit">Follow</button>
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+{% if projects %}
+<h3 style="font-size:16px;font-weight:600;margin-bottom:12px;">Projects ({{ projects|length }})</h3>
+<div class="project-cards-grid">
+    {% for p in projects %}
+    <a href="{% url 'project-detail' p.id %}" class="memo-card">
+        <div class="memo-card-top">
+            <div class="memo-card-days">{{ p.working_days }}<span>days</span></div>
+            {% if p.total_tokens %}<div class="memo-card-tokens">{{ p.tokens_display }}<span>tokens</span></div>{% endif %}
+        </div>
+        <div class="memo-card-header">
+            <div class="memo-card-name">{{ p.name }}</div>
+            <div class="memo-card-badges">
+                <div class="memo-card-badge">{{ p.prompt_count }}</div>
+            </div>
+        </div>
+        {% if p.description %}<div class="memo-card-desc">{{ p.description }}</div>{% endif %}
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<p style="color:#9ca3af;padding:40px 0;text-align:center;">No visible projects.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+{% block title %}Federation{% endblock %}
+
+{% block content %}
+<div class="federation-page">
+    <div class="federation-header">
+        <h1 class="page-title">Federation</h1>
+        {% if identity %}
+        <div class="federation-identity">
+            <span class="badge badge-success">{{ identity.server_name }}</span>
+            <span class="text-sm text-light">{{ identity.server_url }}</span>
+        </div>
+        {% else %}
+        <div class="federation-not-init">
+            <span class="badge badge-warning">Not Initialized</span>
+            <span class="text-sm text-light">Run: <code>python manage.py cpm_federation init --name &lt;name&gt; --url &lt;url&gt;</code></span>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Tabs -->
+    <div class="federation-tabs">
+        <a href="?tab=feed" class="federation-tab {% if tab == 'feed' %}active{% endif %}">
+            Feed <span class="tab-count">{{ feed_items|length }}</span>
+        </a>
+        <a href="?tab=servers" class="federation-tab {% if tab == 'servers' %}active{% endif %}">
+            Servers <span class="tab-count">{{ servers|length }}</span>
+        </a>
+        <a href="?tab=explore" class="federation-tab {% if tab == 'explore' %}active{% endif %}">
+            Explore
+        </a>
+    </div>
+
+    <!-- Servers Tab -->
+    {% if tab == 'servers' %}
+    <div class="federation-panel">
+        {% if is_admin and identity %}
+        <div class="federation-add-server">
+            <input type="text" id="new-server-url" placeholder="https://remote-cpm.example.com" class="federation-input">
+            <button id="btn-add-server" class="btn btn-primary">Add Server</button>
+        </div>
+        {% endif %}
+
+        {% if servers %}
+        <div class="federation-server-list">
+            {% for server in servers %}
+            <div class="federation-server-card" data-server-id="{{ server.id }}">
+                <div class="server-card-header">
+                    <div class="server-card-name">
+                        <span class="server-status-dot status-{{ server.status }}"></span>
+                        <strong>{{ server.name|default:server.url }}</strong>
+                    </div>
+                    <span class="badge badge-{{ server.status }}">{{ server.status }}</span>
+                </div>
+                <div class="server-card-url text-sm text-light">{{ server.url }}</div>
+                <div class="server-card-meta text-xs text-light">
+                    Last sync: {{ server.last_sync_at|date:"Y-m-d H:i"|default:"never" }}
+                    &middot; Errors: {{ server.error_count }}
+                    &middot; Today: {{ server.requests_today }} reqs
+                </div>
+                {% if is_admin %}
+                <div class="server-card-actions">
+                    {% if server.status == 'pending' %}
+                    <button class="btn btn-sm btn-success btn-server-action" data-action="accept" data-url="{{ server.url }}">Accept</button>
+                    {% endif %}
+                    {% if server.status != 'blocked' %}
+                    <button class="btn btn-sm btn-danger btn-server-action" data-action="block" data-id="{{ server.id }}">Block</button>
+                    {% else %}
+                    <button class="btn btn-sm btn-success btn-server-action" data-action="unblock" data-id="{{ server.id }}">Unblock</button>
+                    {% endif %}
+                    <button class="btn btn-sm btn-danger btn-server-action" data-action="delete" data-id="{{ server.id }}">Delete</button>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="federation-empty">
+            <p>No peered servers yet.</p>
+            {% if is_admin and identity %}
+            <p class="text-sm text-light">Add a remote CPM server URL above to start federating.</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if subscriptions %}
+        <h3 class="federation-subtitle">Active Subscriptions</h3>
+        <div class="federation-sub-list">
+            {% for sub in subscriptions %}
+            <div class="federation-sub-item">
+                <span class="sub-project-name">{{ sub.remote_project_name }}</span>
+                <span class="text-sm text-light">@{{ sub.server.name|default:sub.server.url }}</span>
+                <span class="text-xs text-light">&middot; cursor: #{{ sub.last_prompt_id }}</span>
+                <button class="btn btn-sm btn-unsub" data-sub-id="{{ sub.id }}">Unsubscribe</button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Feed Tab -->
+    {% if tab == 'feed' %}
+    <div class="federation-panel">
+        {% if feed_items %}
+        <div class="federation-feed">
+            {% for item in feed_items %}
+            <div class="feed-item {% if item.type == 'remote' %}feed-item-remote{% endif %}">
+                <div class="feed-item-header">
+                    <span class="feed-server-badge {% if item.type == 'local' %}feed-badge-local{% else %}feed-badge-remote{% endif %}">
+                        {{ item.server_name }}
+                    </span>
+                    {% if item.project_id %}
+                    <a href="{% url 'project-detail' item.project_id %}" class="feed-project-name">{{ item.project_name }}</a>
+                    {% else %}
+                    <span class="feed-project-name">{{ item.project_name }}</span>
+                    {% endif %}
+                    {% if item.owner %}
+                    <span class="feed-user">@{{ item.owner }}</span>
+                    {% endif %}
+                    {% if item.tmux_session %}
+                    <span class="tmux-badge text-xs">{{ item.tmux_session }}</span>
+                    {% endif %}
+                    <span class="feed-time text-xs text-light">{{ item.created_at|date:"m/d H:i" }}</span>
+                </div>
+                <div class="feed-item-content">{{ item.content }}</div>
+                {% if item.response_summary %}
+                <div class="feed-item-response text-sm text-light">{{ item.response_summary }}</div>
+                {% endif %}
+                <div class="feed-item-meta text-xs">
+                    <span class="badge badge-sm badge-{{ item.status }}">{{ item.status }}</span>
+                    {% if item.tag %}<span class="tag-label text-xs">#{{ item.tag }}</span>{% endif %}
+                    {% if item.type == 'local' and item.project_id %}
+                    <a href="{% url 'prompt-detail' item.id %}" class="feed-link text-xs">View</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="federation-empty">
+            <p>No prompts yet.</p>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Explore Tab -->
+    {% if tab == 'explore' %}
+    <div class="federation-panel">
+        {% if servers %}
+        <div class="explore-server-select">
+            <label>Select server to explore:</label>
+            <select id="explore-server-select">
+                <option value="">-- Choose --</option>
+                {% for server in servers %}
+                {% if server.status == 'active' %}
+                <option value="{{ server.id }}">{{ server.name|default:server.url }}</option>
+                {% endif %}
+                {% endfor %}
+            </select>
+        </div>
+        <div id="explore-results" class="explore-results"></div>
+        {% else %}
+        <div class="federation-empty">
+            <p>No active servers to explore.</p>
+            <p class="text-sm text-light">Add and pair a server first.</p>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+    var csrfVal = csrfToken ? csrfToken.value : '';
+
+    function apiPost(url, data, cb) {
+        fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfVal},
+            body: JSON.stringify(data)
+        }).then(function(r){ return r.json(); }).then(cb).catch(function(e){ alert('Error: ' + e); });
+    }
+
+    // Add server
+    var addBtn = document.getElementById('btn-add-server');
+    if (addBtn) {
+        addBtn.addEventListener('click', function(){
+            var urlInput = document.getElementById('new-server-url');
+            var url = urlInput.value.trim();
+            if (!url) return;
+            addBtn.disabled = true;
+            apiPost('/api/federation/servers/add/', {server_url: url}, function(d){
+                addBtn.disabled = false;
+                if (d.error) { alert(d.error); return; }
+                alert(d.message || 'Server added');
+                location.reload();
+            });
+        });
+    }
+
+    // Server actions (accept, block, unblock, delete)
+    document.querySelectorAll('.btn-server-action').forEach(function(btn){
+        btn.addEventListener('click', function(){
+            var action = btn.dataset.action;
+            var id = btn.dataset.id;
+            var url = btn.dataset.url;
+
+            if (action === 'accept' && url) {
+                apiPost('/api/federation/pair/accept/', {server_url: url}, function(d){
+                    if (d.error) { alert(d.error); return; }
+                    location.reload();
+                });
+            } else if (id) {
+                if (action === 'delete' && !confirm('Delete this server?')) return;
+                apiPost('/api/federation/servers/action/', {server_id: parseInt(id), action: action}, function(d){
+                    if (d.error) { alert(d.error); return; }
+                    location.reload();
+                });
+            }
+        });
+    });
+
+    // Unsubscribe
+    document.querySelectorAll('.btn-unsub').forEach(function(btn){
+        btn.addEventListener('click', function(){
+            var subId = parseInt(btn.dataset.subId);
+            apiPost('/api/federation/unsubscribe/', {subscription_id: subId}, function(d){
+                if (d.error) { alert(d.error); return; }
+                location.reload();
+            });
+        });
+    });
+
+    // Explore
+    var exploreSelect = document.getElementById('explore-server-select');
+    var exploreResults = document.getElementById('explore-results');
+    if (exploreSelect) {
+        exploreSelect.addEventListener('change', function(){
+            var serverId = this.value;
+            if (!serverId) { exploreResults.innerHTML = ''; return; }
+            exploreResults.innerHTML = '<div class="federation-empty">Loading...</div>';
+            fetch('/api/federation/explore/' + serverId + '/')
+                .then(function(r){ return r.json(); })
+                .then(function(data){
+                    if (data.error) { exploreResults.innerHTML = '<div class="federation-empty">' + data.error + '</div>'; return; }
+                    var projects = data.projects || [];
+                    if (!projects.length) { exploreResults.innerHTML = '<div class="federation-empty">No public projects found.</div>'; return; }
+                    exploreResults.innerHTML = projects.map(function(p){
+                        return '<div class="explore-project-card">' +
+                            '<div class="explore-project-header">' +
+                                '<strong>' + (p.name || 'Untitled').replace(/</g,'&lt;') + '</strong>' +
+                                '<span class="text-sm text-light">' + p.prompt_count + ' prompts</span>' +
+                            '</div>' +
+                            '<div class="text-sm text-light">' + (p.description || '').replace(/</g,'&lt;').substring(0,100) + '</div>' +
+                            (p.owner ? '<div class="text-xs text-light">Owner: @' + p.owner + '</div>' : '') +
+                            (!p.subscribed ?
+                                '<button class="btn btn-sm btn-primary btn-subscribe" data-server-id="' + serverId + '" data-project-id="' + p.id + '" data-project-name="' + (p.name||'').replace(/"/g,'&quot;') + '">Subscribe</button>' :
+                                '<span class="badge badge-success">Subscribed</span>'
+                            ) +
+                        '</div>';
+                    }).join('');
+
+                    // Attach subscribe handlers
+                    exploreResults.querySelectorAll('.btn-subscribe').forEach(function(btn){
+                        btn.addEventListener('click', function(){
+                            apiPost('/api/federation/subscribe/', {
+                                server_id: parseInt(btn.dataset.serverId),
+                                remote_project_id: parseInt(btn.dataset.projectId),
+                                remote_project_name: btn.dataset.projectName,
+                            }, function(d){
+                                if (d.error) { alert(d.error); return; }
+                                btn.outerHTML = '<span class="badge badge-success">Subscribed</span>';
+                            });
+                        });
+                    });
+                });
+        });
+    }
+})();
+</script>
+{% endblock %}

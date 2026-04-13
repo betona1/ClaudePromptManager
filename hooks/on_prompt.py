@@ -21,7 +21,7 @@ import os
 
 # Add parent directory to path for shared import
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from shared import get_db, ensure_tables, resolve_project_by_path, ensure_session, auto_detect_github_url, redis_publish, remote_post, backup_hooks_settings
+from shared import get_db, ensure_tables, resolve_project_by_path, ensure_session, auto_detect_github_url, redis_publish, remote_post, backup_hooks_settings, detect_tmux_session
 
 
 def main():
@@ -35,6 +35,7 @@ def main():
     prompt_text = data.get('prompt', '').strip()
     session_id = data.get('session_id', '')
     cwd = data.get('cwd', os.getcwd())
+    tmux_session = detect_tmux_session()
 
     if not prompt_text:
         print('{}')
@@ -49,9 +50,9 @@ def main():
         ensure_session(conn, session_id, project_id, cwd)
 
         cursor = conn.execute(
-            """INSERT INTO prompts (project_id, content, status, session_id, source, created_at, updated_at)
-               VALUES (?, ?, 'wip', ?, 'hook', datetime('now','localtime'), datetime('now','localtime'))""",
-            (project_id, prompt_text, session_id)
+            """INSERT INTO prompts (project_id, content, status, session_id, source, tmux_session, created_at, updated_at)
+               VALUES (?, ?, 'wip', ?, 'hook', ?, datetime('now','localtime'), datetime('now','localtime'))""",
+            (project_id, prompt_text, session_id, tmux_session)
         )
         prompt_id = cursor.lastrowid
 
@@ -67,6 +68,7 @@ def main():
             'prompt_id': prompt_id,
             'project_id': project_id,
             'session_id': session_id,
+            'tmux_session': tmux_session,
             'content': prompt_text[:200],
         })
 
@@ -88,6 +90,7 @@ def main():
             'session_id': session_id,
             'cwd': cwd,
             'hostname': socket.gethostname(),
+            'tmux_session': tmux_session,
         })
     except Exception:
         pass

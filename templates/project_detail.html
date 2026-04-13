@@ -222,6 +222,7 @@
 <!-- Search within project -->
 <form method="GET" class="project-search-form">
     {% if current_source %}<input type="hidden" name="source" value="{{ current_source }}">{% endif %}
+    {% if current_tmux %}<input type="hidden" name="tmux" value="{{ current_tmux }}">{% endif %}
     <input type="text" name="q" value="{{ current_q }}" placeholder="Search prompts in {{ project.name }}...">
     <button type="submit">Search</button>
     {% if current_q %}
@@ -233,9 +234,26 @@
 <div class="filters">
     <a href="{% url 'project-detail' project.id %}{% if current_q %}?q={{ current_q }}{% endif %}"
        class="filter-pill {% if not current_source %}active all{% endif %}">All</a>
-    <a href="?source=hook{% if current_q %}&q={{ current_q }}{% endif %}" class="filter-pill {% if current_source == 'hook' %}active hook{% endif %}">Hook</a>
-    <a href="?source=import{% if current_q %}&q={{ current_q }}{% endif %}" class="filter-pill {% if current_source == 'import' %}active import{% endif %}">Import</a>
+    <a href="?source=hook{% if current_q %}&q={{ current_q }}{% endif %}{% if current_tmux %}&tmux={{ current_tmux }}{% endif %}" class="filter-pill {% if current_source == 'hook' %}active hook{% endif %}">Hook</a>
+    <a href="?source=import{% if current_q %}&q={{ current_q }}{% endif %}{% if current_tmux %}&tmux={{ current_tmux }}{% endif %}" class="filter-pill {% if current_source == 'import' %}active import{% endif %}">Import</a>
 </div>
+
+{% if tmux_groups %}
+<div class="filters tmux-filters" title="tmux/screen sub-categories">
+    <span class="tmux-filter-label">tmux</span>
+    <a href="?{% if current_source %}source={{ current_source }}&{% endif %}{% if current_q %}q={{ current_q }}&{% endif %}"
+       class="filter-pill tmux-pill {% if not current_tmux %}active{% endif %}">All</a>
+    {% for g in tmux_groups %}
+    {% if g.unknown %}
+    <a href="?tmux=__none__{% if current_source %}&source={{ current_source }}{% endif %}{% if current_tmux %}&tmux={{ current_tmux }}{% endif %}{% if current_q %}&q={{ current_q }}{% endif %}"
+       class="filter-pill tmux-pill tmux-pill-unknown {% if current_tmux == '__none__' %}active{% endif %}">(none) <span class="tmux-count">{{ g.count }}</span></a>
+    {% else %}
+    <a href="?tmux={{ g.name }}{% if current_source %}&source={{ current_source }}{% endif %}{% if current_tmux %}&tmux={{ current_tmux }}{% endif %}{% if current_q %}&q={{ current_q }}{% endif %}"
+       class="filter-pill tmux-pill {% if current_tmux == g.name %}active{% endif %}" title="{{ g.name }}">{{ g.name }} <span class="tmux-count">{{ g.count }}</span></a>
+    {% endif %}
+    {% endfor %}
+</div>
+{% endif %}
 
 {% if current_q %}
 <div class="search-result-info">"{{ current_q }}" 검색 결과: {{ prompt_count }}건</div>
@@ -249,9 +267,9 @@
         <div class="pt-col-response-main">Response</div>
         <div class="pt-col-date">
             {% if sort == 'asc' %}
-            <a href="?sort=desc{% if current_source %}&source={{ current_source }}{% endif %}{% if current_q %}&q={{ current_q }}{% endif %}" class="sort-link">Date &#9650;</a>
+            <a href="?sort=desc{% if current_source %}&source={{ current_source }}{% endif %}{% if current_tmux %}&tmux={{ current_tmux }}{% endif %}{% if current_q %}&q={{ current_q }}{% endif %}" class="sort-link">Date &#9650;</a>
             {% else %}
-            <a href="?sort=asc{% if current_source %}&source={{ current_source }}{% endif %}{% if current_q %}&q={{ current_q }}{% endif %}" class="sort-link">Date &#9660;</a>
+            <a href="?sort=asc{% if current_source %}&source={{ current_source }}{% endif %}{% if current_tmux %}&tmux={{ current_tmux }}{% endif %}{% if current_q %}&q={{ current_q }}{% endif %}" class="sort-link">Date &#9660;</a>
             {% endif %}
         </div>
     </div>
@@ -261,6 +279,7 @@
         <div class="pt-col-content-main">
             <div class="pt-prompt-text">{{ pr.content|truncatechars:200 }}</div>
             {% if pr.source == 'hook' %}<span class="source-hook text-xs">hook</span>{% endif %}
+            {% if pr.tmux_session %}<span class="tmux-badge" title="tmux session">{{ pr.tmux_session }}</span>{% endif %}
         </div>
         <div class="pt-col-response-main">
             {% if pr.response_summary %}
@@ -280,11 +299,11 @@
 {% if total_pages > 1 %}
 <div class="pagination">
     {% if page > 1 %}
-    <a href="?page={{ page|add:"-1" }}{% if sort %}&sort={{ sort }}{% endif %}{% if current_source %}&source={{ current_source }}{% endif %}{% if current_q %}&q={{ current_q }}{% endif %}">Prev</a>
+    <a href="?page={{ page|add:"-1" }}{% if sort %}&sort={{ sort }}{% endif %}{% if current_source %}&source={{ current_source }}{% endif %}{% if current_tmux %}&tmux={{ current_tmux }}{% endif %}{% if current_q %}&q={{ current_q }}{% endif %}">Prev</a>
     {% endif %}
     <span>{{ page }} / {{ total_pages }}</span>
     {% if page < total_pages %}
-    <a href="?page={{ page|add:"1" }}{% if sort %}&sort={{ sort }}{% endif %}{% if current_source %}&source={{ current_source }}{% endif %}{% if current_q %}&q={{ current_q }}{% endif %}">Next</a>
+    <a href="?page={{ page|add:"1" }}{% if sort %}&sort={{ sort }}{% endif %}{% if current_source %}&source={{ current_source }}{% endif %}{% if current_tmux %}&tmux={{ current_tmux }}{% endif %}{% if current_q %}&q={{ current_q }}{% endif %}">Next</a>
     {% endif %}
 </div>
 {% endif %}

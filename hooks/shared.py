@@ -71,7 +71,7 @@ def ensure_tables(conn: sqlite3.Connection):
     );
     """)
     # Add v2 columns if missing (for existing v1 DBs)
-    for col, default in [('session_id', None), ('source', "'manual'"), ('duration_ms', None)]:
+    for col, default in [('session_id', None), ('source', "'manual'"), ('duration_ms', None), ('tmux_session', None)]:
         try:
             conn.execute(f"ALTER TABLE prompts ADD COLUMN {col} TEXT"
                         if default is None
@@ -157,21 +157,124 @@ def ensure_session(conn: sqlite3.Connection, session_id: str, project_id: int, c
     conn.commit()
 
 
+def detect_tmux_session():
+    """Detect current terminal multiplexer session name.
+
+    Priority:
+      1. tmux session name via `tmux display-message -p '#S'` (if $TMUX is set)
+      2. TMUX_PANE fallback (if tmux binary missing but pane id inherited)
+      3. GNU screen session name ($STY)
+    Returns None if not inside a multiplexer. Never raises.
+    """
+    try:
+        if os.environ.get('TMUX'):
+            # tmux CLI is the most reliable way to get the human-readable session name
+            try:
+                import subprocess
+                out = subprocess.check_output(
+                    ['tmux', 'display-message', '-p', '#S'],
+                    stderr=subprocess.DEVNULL, timeout=2
+                )
+                name = out.decode('utf-8', errors='replace').strip()
+                if name:
+                    return f'tmux:{name}'
+            except Exception:
+                pass
+            # Fallback to pane id if tmux binary unavailable
+            pane = os.environ.get('TMUX_PANE')
+            if pane:
+                return f'tmux-pane:{pane}'
+        sty = os.environ.get('STY')
+        if sty:
+            return f'screen:{sty}'
+    except Exception:
+        pass
+    return None
+
+
 def get_remote_server() -> str:
     """Get remote CPM server URL from env. Returns empty string if not set."""
     return os.environ.get('CPM_REMOTE_SERVER', '').rstrip('/')
 
 
+def get_api_token() -> str:
+    """Get CPM API token from env. Returns empty string if not set."""
+    return os.environ.get('CPM_API_TOKEN', '')
+
+
+_self_server_cache = {}
+
+
+def _is_self_server(server_url: str) -> bool:
+    """Return True if the given CPM server URL points at this machine.
+
+    Uses a UDP socket routing probe: when you connect() a UDP socket to
+    an IP that is assigned to this host, the kernel picks that same IP
+    as the local source. If local == target, the URL is us. This works
+    across all interfaces (eth, tailscale, docker) without parsing any
+    OS-specific files. Results are cached per process.
+    """
+    if not server_url:
+        return False
+    if server_url in _self_server_cache:
+        return _self_server_cache[server_url]
+    result = False
+    try:
+        from urllib.parse import urlparse
+        import socket
+        host = (urlparse(server_url).hostname or '').lower()
+        if not host:
+            result = False
+        elif host in ('localhost', '127.0.0.1', '::1', '0.0.0.0'):
+            result = True
+        else:
+            try:
+                my_hostname = socket.gethostname().lower()
+                if host == my_hostname or host == my_hostname.split('.')[0]:
+                    result = True
+            except Exception:
+                pass
+            if not result:
+                try:
+                    target_ip = socket.gethostbyname(host)
+                    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    try:
+                        s.settimeout(1.0)
+                        s.connect((target_ip, 1))
+                        local_ip = s.getsockname()[0]
+                    finally:
+                        s.close()
+                    if local_ip == target_ip:
+                        result = True
+                except Exception:
+                    pass
+    except Exception:
+        result = False
+    _self_server_cache[server_url] = result
+    return result
+
+
 def remote_post(endpoint: str, data: dict):
-    """POST to remote CPM server if configured. Non-blocking, fire-and-forget."""
+    """POST to remote CPM server if configured. Non-blocking, fire-and-forget.
+
+    Skips the POST when the configured server resolves to this machine, to
+    avoid duplicate inserts (local hook writes to SQLite directly and the
+    API endpoint would write a second row to the same DB).
+    """
     server = get_remote_server()
     if not server:
         return
+    if _is_self_server(server):
+        return  # same host — local hook already persisted this prompt
     try:
         import urllib.request
         url = f"{server}/api/{endpoint}"
         payload = json.dumps(data, ensure_ascii=False).encode('utf-8')
-        req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
+        headers = {'Content-Type': 'application/json'}
+        token = get_api_token()
+        if token:
+            headers['Authorization'] = f'Bearer {token}'
+        req = urllib.request.Request(url, data=payload, headers=headers)
         urllib.request.urlopen(req, timeout=5)
     except Exception:
         pass  # Never block Claude Code
@@ -203,7 +306,9 @@ def backup_hooks_settings():
 
 
 def check_hooks_health() -> dict:
-    """Check if CPM hooks are registered in settings.json.
+    """Check if CPM hooks are active.
+    First tries settings.json (local). If not found (e.g. Docker),
+    falls back to checking recent DB activity from hook source.
     Returns: {'ok': bool, 'prompt_hook': bool, 'stop_hook': bool, 'backup_exists': bool}
     """
     result = {'ok': False, 'prompt_hook': False, 'stop_hook': False, 'backup_exists': False}
@@ -212,23 +317,61 @@ def check_hooks_health() -> dict:
         backup_path = Path.home() / '.claude' / 'settings.hooks.backup.json'
         result['backup_exists'] = backup_path.exists()
 
-        if not settings_path.exists():
+        if settings_path.exists():
+            with open(settings_path, 'r') as f:
+                data = json.load(f)
+
+            hooks = data.get('hooks', {})
+            for entry in hooks.get('UserPromptSubmit', []):
+                for h in entry.get('hooks', []):
+                    if 'on_prompt' in h.get('command', ''):
+                        result['prompt_hook'] = True
+            for entry in hooks.get('Stop', []):
+                for h in entry.get('hooks', []):
+                    if 'on_stop' in h.get('command', ''):
+                        result['stop_hook'] = True
+
+            result['ok'] = result['prompt_hook'] and result['stop_hook']
             return result
 
-        with open(settings_path, 'r') as f:
-            data = json.load(f)
+        # Fallback: no settings.json (Docker / remote-only mode)
+        # Check if hooks are actively sending data by looking at recent DB activity
+        # Try CPM_DATA_DIR first (Docker), then default path
+        data_dir = os.environ.get('CPM_DATA_DIR', '')
+        if data_dir:
+            db_path = Path(data_dir) / 'cpm.db'
+        else:
+            db_path = get_db_path()
 
-        hooks = data.get('hooks', {})
-        for entry in hooks.get('UserPromptSubmit', []):
-            for h in entry.get('hooks', []):
-                if 'on_prompt' in h.get('command', ''):
+        if db_path and db_path.exists():
+            conn = sqlite3.connect(str(db_path), timeout=2)
+            cursor = conn.cursor()
+            # Check for hook-source prompts in the last 24 hours
+            cursor.execute(
+                "SELECT COUNT(*) FROM prompts WHERE source IN ('hook','import') "
+                "AND created_at >= datetime('now', '-24 hours')"
+            )
+            recent_count = cursor.fetchone()[0]
+            conn.close()
+
+            if recent_count > 0:
+                result['ok'] = True
+                result['prompt_hook'] = True
+                result['stop_hook'] = True
+            else:
+                # No recent hooks, but check if there are ANY hook prompts ever
+                conn = sqlite3.connect(str(db_path), timeout=2)
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT COUNT(*) FROM prompts WHERE source IN ('hook','import')"
+                )
+                total_hooks = cursor.fetchone()[0]
+                conn.close()
+                if total_hooks > 0:
+                    # Hooks existed before, just no activity in 24h — still OK
+                    result['ok'] = True
                     result['prompt_hook'] = True
-        for entry in hooks.get('Stop', []):
-            for h in entry.get('hooks', []):
-                if 'on_stop' in h.get('command', ''):
                     result['stop_hook'] = True
-
-        result['ok'] = result['prompt_hook'] and result['stop_hook']
     except Exception:
         pass
     return result

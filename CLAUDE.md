@@ -1,5 +1,11 @@
 # CLAUDE.md — CPM (Claude Prompt Manager) v2
 
+## 🚫 전역 포트 규칙 — 포트 3000 사용 금지
+
+- **포트 3000은 `901 플래너(ntplanic)` 전용**입니다. 이 프로젝트에서 3000번을 바인딩하지 마십시오.
+- 신규 서비스 추가/포트 변경 시, `ss -tlnp | grep :3000` 로 충돌이 없는지 먼저 확인합니다.
+- 재부팅 순서상 PM2가 Docker보다 먼저 기동되므로, PM2 앱이 3000을 잡으면 ntplanic-app-1이 Exit 255로 실패합니다.
+
 ## 프로젝트 개요
 Claude Code 프롬프트를 자동 캡처·관리하는 Django 기반 CLI + Web 시스템.
 Claude Code hooks로 프롬프트를 자동 DB 저장, 웹 UI로 검색·관리.

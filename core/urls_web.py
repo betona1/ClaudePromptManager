@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import RedirectView
 from . import views_web
 
 urlpatterns = [
@@ -14,4 +15,12 @@ urlpatterns = [
     path('remote/', views_web.remote_execute, name='remote-execute'),
     path('setup/', views_web.setup_guide, name='setup-guide'),
     path('setup/download/<str:filename>', views_web.download_hook, name='download-hook'),
+    # Federation
+    path('federation/', views_web.federation_page, name='federation'),
+    # User pages
+    path('login/github/', RedirectView.as_view(url='/accounts/github/login/'), name='github_login'),
+    path('settings/', views_web.user_settings, name='user-settings'),
+    path('@<str:username>/', views_web.user_profile, name='user-profile'),
+    path('@<str:username>/follow/', views_web.follow_user, name='follow-user'),
+    path('@<str:username>/unfollow/', views_web.unfollow_user, name='unfollow-user'),
 ]

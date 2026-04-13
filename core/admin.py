@@ -1,5 +1,10 @@
 from django.contrib import admin
-from .models import Project, ProjectScreenshot, ProjectTodo, Terminal, Prompt, Template, Session, ToolCall, ServicePort
+from .models import (
+    Project, ProjectScreenshot, ProjectTodo, Terminal, Prompt, Template,
+    Session, ToolCall, ServicePort, UserProfile, Follow, Comment,
+    ServerIdentity, FederatedServer, FederatedSubscription, FederatedPrompt,
+    FederatedUser, FederatedComment,
+)
 
 
 @admin.register(Project)
@@ -62,3 +67,54 @@ class ServicePortAdmin(admin.ModelAdmin):
     list_display = ['id', 'server_name', 'ip', 'port', 'service_name', 'service_type', 'status', 'project']
     list_filter = ['service_type', 'status', 'server_name']
     search_fields = ['server_name', 'ip', 'service_name', 'remarks']
+
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ['id', 'github_username', 'is_admin', 'created_at']
+    search_fields = ['github_username']
+
+
+@admin.register(Follow)
+class FollowAdmin(admin.ModelAdmin):
+    list_display = ['id', 'follower', 'following', 'created_at']
+
+
+@admin.register(Comment)
+class CommentAdmin(admin.ModelAdmin):
+    list_display = ['id', 'prompt', 'author', 'created_at']
+    list_filter = ['author']
+
+
+# ── Federation ──
+
+@admin.register(ServerIdentity)
+class ServerIdentityAdmin(admin.ModelAdmin):
+    list_display = ['id', 'server_name', 'server_url', 'created_at']
+
+
+@admin.register(FederatedServer)
+class FederatedServerAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name', 'url', 'status', 'last_sync_at', 'error_count', 'requests_today']
+    list_filter = ['status']
+
+
+@admin.register(FederatedSubscription)
+class FederatedSubscriptionAdmin(admin.ModelAdmin):
+    list_display = ['id', 'server', 'remote_project_name', 'is_active', 'last_prompt_id']
+    list_filter = ['is_active']
+
+
+@admin.register(FederatedPrompt)
+class FederatedPromptAdmin(admin.ModelAdmin):
+    list_display = ['id', 'subscription', 'remote_prompt_id', 'status', 'remote_created_at']
+
+
+@admin.register(FederatedUser)
+class FederatedUserAdmin(admin.ModelAdmin):
+    list_display = ['id', 'federated_id', 'username', 'server']
+
+
+@admin.register(FederatedComment)
+class FederatedCommentAdmin(admin.ModelAdmin):
+    list_display = ['id', 'author_name', 'author_federated_id', 'created_at']

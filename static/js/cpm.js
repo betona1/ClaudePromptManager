@@ -862,4 +862,89 @@
             });
     };
 
+    // ── Period stat card (Today / Yesterday / Week / Month) ──
+    (function() {
+        const card = document.getElementById('period-stat-card');
+        if (!card) return;
+
+        const periods = [
+            { key: 'today',     label: 'Today' },
+            { key: 'yesterday', label: 'Yesterday' },
+            { key: 'week',      label: 'Last 7 Days' },
+            { key: 'month',     label: 'Last 30 Days' },
+        ];
+
+        const numEl = document.getElementById('period-num');
+        const labelEl = document.getElementById('period-label');
+        const prevBtn = card.querySelector('.period-nav-prev');
+        const nextBtn = card.querySelector('.period-nav-next');
+        const dotsWrap = document.getElementById('period-dots');
+
+        // Build dots
+        periods.forEach(function(p, i) {
+            const dot = document.createElement('button');
+            dot.type = 'button';
+            dot.className = 'period-dot';
+            dot.title = p.label;
+            dot.dataset.idx = i;
+            dotsWrap.appendChild(dot);
+        });
+        const dots = Array.from(dotsWrap.querySelectorAll('.period-dot'));
+
+        let idx = 0;
+        try {
+            const saved = parseInt(localStorage.getItem('cpm-period-idx') || '0', 10);
+            if (!isNaN(saved) && saved >= 0 && saved < periods.length) idx = saved;
+        } catch (e) {}
+
+        function render() {
+            const p = periods[idx];
+            const val = card.dataset[p.key] || '0';
+            numEl.textContent = val;
+            labelEl.textContent = p.label;
+            dots.forEach(function(d, i) { d.classList.toggle('active', i === idx); });
+            card.classList.add('animating');
+            setTimeout(function() { card.classList.remove('animating'); }, 200);
+            try { localStorage.setItem('cpm-period-idx', String(idx)); } catch (e) {}
+        }
+
+        function go(delta) {
+            idx = (idx + delta + periods.length) % periods.length;
+            render();
+        }
+
+        prevBtn.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); go(-1); });
+        nextBtn.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); go(1); });
+        dots.forEach(function(d) {
+            d.addEventListener('click', function(e) {
+                e.preventDefault(); e.stopPropagation();
+                idx = parseInt(d.dataset.idx, 10) || 0;
+                render();
+            });
+        });
+
+        // Global arrow-key navigation (skip when typing or a modal is open)
+        document.addEventListener('keydown', function(e) {
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            const ae = document.activeElement;
+            if (ae) {
+                const tag = (ae.tagName || '').toLowerCase();
+                if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+                if (ae.isContentEditable) return;
+            }
+            // Skip if a visible modal is open
+            const modals = document.querySelectorAll('.project-add-modal, .modal, #todo-modal, #screenshot-modal, #gallery-modal');
+            for (let i = 0; i < modals.length; i++) {
+                const m = modals[i];
+                const disp = (m.style && m.style.display) || getComputedStyle(m).display;
+                if (disp && disp !== 'none') return;
+            }
+            e.preventDefault();
+            go(e.key === 'ArrowLeft' ? -1 : 1);
+        });
+
+        render();
+    })();
+
 })();

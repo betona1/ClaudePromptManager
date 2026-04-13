@@ -34,6 +34,12 @@
                 <span class="font-mono text-xs">{{ prompt.session_id|truncatechars:20 }}</span>
             </div>
             {% endif %}
+            {% if prompt.tmux_session %}
+            <div>
+                <span class="detail-meta-label">tmux:</span>
+                <a href="{% url 'project-detail' prompt.project.id %}?tmux={{ prompt.tmux_session }}" class="tmux-badge" title="Filter by tmux session">{{ prompt.tmux_session }}</a>
+            </div>
+            {% endif %}
             {% if prompt.parent %}
             <div>
                 <span class="detail-meta-label">Parent:</span>
@@ -86,7 +92,77 @@
     </div>
     {% endif %}
 
+    <!-- Comments -->
+    <div class="detail-section comments-section" id="comments-section" data-prompt-id="{{ prompt.id }}">
+        <div class="detail-section-title">Comments</div>
+        <div id="comments-list">
+            <div class="comment-empty">Loading comments...</div>
+        </div>
+        {% if user.is_authenticated %}
+        <div class="comment-form">
+            <textarea id="comment-input" placeholder="Write a comment..."></textarea>
+            <button id="comment-submit">Post</button>
+        </div>
+        {% else %}
+        <div class="comment-login-hint"><a href="{% url 'github_login' %}">Login with GitHub</a> to comment.</div>
+        {% endif %}
+    </div>
+
     <!-- Footer -->
     <div class="detail-footer">Updated: {{ prompt.updated_at|date:"Y-m-d H:i:s" }}</div>
 </div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+    var section = document.getElementById('comments-section');
+    if (!section) return;
+    var promptId = section.dataset.promptId;
+    var listEl = document.getElementById('comments-list');
+    var inputEl = document.getElementById('comment-input');
+    var submitEl = document.getElementById('comment-submit');
+
+    function loadComments(){
+        fetch('/api/prompts/' + promptId + '/comments/')
+            .then(function(r){ return r.json(); })
+            .then(function(data){
+                if(!data.comments || data.comments.length === 0){
+                    listEl.innerHTML = '<div class="comment-empty">No comments yet.</div>';
+                    return;
+                }
+                listEl.innerHTML = data.comments.map(function(c){
+                    return '<div class="comment-item">' +
+                        (c.avatar_url ? '<img src="'+c.avatar_url+'" class="comment-avatar" alt="">' : '<div class="comment-avatar" style="background:#e5e7eb;"></div>') +
+                        '<div class="comment-body">' +
+                        '<div class="comment-meta"><strong>@'+c.author+'</strong> &middot; '+new Date(c.created_at).toLocaleString()+'</div>' +
+                        '<div class="comment-text">'+c.content.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div>' +
+                        '</div></div>';
+                }).join('');
+            });
+    }
+
+    loadComments();
+
+    if(submitEl){
+        submitEl.addEventListener('click', function(){
+            var content = inputEl.value.trim();
+            if(!content) return;
+            submitEl.disabled = true;
+            var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+            fetch('/api/prompts/' + promptId + '/comments/', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json', 'X-CSRFToken': csrfToken ? csrfToken.value : ''},
+                body: JSON.stringify({content: content})
+            }).then(function(r){ return r.json(); })
+            .then(function(){
+                inputEl.value = '';
+                loadComments();
+                submitEl.disabled = false;
+            }).catch(function(){ submitEl.disabled = false; });
+        });
+    }
+})();
+</script>
 {% endblock %}

@@ -14,7 +14,7 @@ RUN apt-get update && \
 
 # Install Python dependencies
 COPY setup.py ./
-RUN pip install --no-cache-dir -e . gunicorn whitenoise
+RUN pip install --no-cache-dir -e . gunicorn whitenoise requests
 
 # Copy application code
 COPY . .

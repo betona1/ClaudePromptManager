@@ -1,3 +1,6 @@
+import hashlib
+import secrets
+from django.conf import settings
 from django.db import models
 
 
@@ -50,11 +53,24 @@ PROTOCOL_CHOICES = [
     ('tcp', 'TCP'),
 ]
 
+VISIBILITY_CHOICES = [
+    ('public', 'Public'),
+    ('private', 'Private'),
+    ('friends', 'Friends Only'),
+]
+
 
 class Project(models.Model):
     name = models.CharField(max_length=255, unique=True)
     path = models.TextField(blank=True, null=True)
     description = models.TextField(blank=True, null=True)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='owned_projects'
+    )
+    visibility = models.CharField(
+        max_length=10, choices=VISIBILITY_CHOICES, default='public', db_index=True
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     url = models.URLField(blank=True, null=True, help_text='Project web URL for screenshot capture')
@@ -139,6 +155,7 @@ class Prompt(models.Model):
     session_id = models.CharField(max_length=255, blank=True, null=True, db_index=True)
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='manual')
     duration_ms = models.IntegerField(blank=True, null=True)
+    tmux_session = models.CharField(max_length=100, blank=True, null=True, db_index=True, help_text='tmux/screen session name captured at prompt time')
 
     class Meta:
         db_table = 'prompts'
@@ -352,3 +369,226 @@ class TelegramChatId(models.Model):
 
     def __str__(self):
         return f"{self.chat_id} ({self.label})" if self.label else self.chat_id
+
+
+# ── Multi-user models ──
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='profile'
+    )
+    github_username = models.CharField(max_length=255, unique=True, db_index=True)
+    avatar_url = models.URLField(blank=True, default='')
+    bio = models.TextField(blank=True, default='')
+    api_token = models.CharField(
+        max_length=64, unique=True, db_index=True, default=secrets.token_urlsafe
+    )
+    is_admin = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'user_profiles'
+
+    def __str__(self):
+        return self.github_username
+
+    def regenerate_token(self):
+        self.api_token = secrets.token_urlsafe(48)
+        self.save(update_fields=['api_token'])
+        return self.api_token
+
+
+class Follow(models.Model):
+    follower = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='following_set'
+    )
+    following = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='followers_set'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'follows'
+        unique_together = [('follower', 'following')]
+
+    def __str__(self):
+        return f"{self.follower} -> {self.following}"
+
+
+class Comment(models.Model):
+    prompt = models.ForeignKey(
+        Prompt, on_delete=models.CASCADE, related_name='comments'
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='comments'
+    )
+    content = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'comments'
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"Comment by {self.author} on Prompt #{self.prompt_id}"
+
+
+# ── Federation models ──
+
+FEDERATION_STATUS_CHOICES = [
+    ('pending', 'Pending'),
+    ('active', 'Active'),
+    ('suspended', 'Suspended'),
+    ('blocked', 'Blocked'),
+]
+
+
+class ServerIdentity(models.Model):
+    """Singleton: this server's federation identity."""
+    server_name = models.CharField(max_length=255, unique=True)
+    server_url = models.URLField(help_text='Public URL of this CPM server')
+    description = models.TextField(blank=True, default='')
+    shared_secret = models.CharField(max_length=128, default=secrets.token_urlsafe)
+    admin_contact = models.EmailField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'server_identity'
+        verbose_name_plural = 'Server Identity'
+
+    def __str__(self):
+        return self.server_name
+
+    @classmethod
+    def get_instance(cls):
+        return cls.objects.first()
+
+
+class FederatedServer(models.Model):
+    """A remote CPM server we've peered with."""
+    url = models.URLField(unique=True, help_text='Base URL of remote server')
+    name = models.CharField(max_length=255, blank=True, default='')
+    description = models.TextField(blank=True, default='')
+    status = models.CharField(max_length=20, choices=FEDERATION_STATUS_CHOICES, default='pending')
+    # Tokens for mutual auth
+    our_token = models.CharField(max_length=128, default=secrets.token_urlsafe,
+                                 help_text='Token we send to them')
+    their_token = models.CharField(max_length=128, blank=True, default='',
+                                   help_text='Token they send to us')
+    shared_secret = models.CharField(max_length=128, blank=True, default='',
+                                     help_text='Derived shared secret for HMAC')
+    last_sync_at = models.DateTimeField(null=True, blank=True)
+    error_count = models.IntegerField(default=0)
+    requests_today = models.IntegerField(default=0)
+    requests_reset_date = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'federated_servers'
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.name or self.url} [{self.status}]"
+
+    def derive_shared_secret(self):
+        """Derive shared secret from sorted tokens."""
+        tokens = sorted([self.our_token, self.their_token])
+        self.shared_secret = hashlib.sha256(''.join(tokens).encode()).hexdigest()
+        self.save(update_fields=['shared_secret'])
+        return self.shared_secret
+
+
+class FederatedUser(models.Model):
+    """Cached remote user info."""
+    username = models.CharField(max_length=255)
+    server = models.ForeignKey(FederatedServer, on_delete=models.CASCADE, related_name='users')
+    display_name = models.CharField(max_length=255, blank=True, default='')
+    avatar_url = models.URLField(blank=True, default='')
+    federated_id = models.CharField(max_length=500, unique=True, db_index=True,
+                                    help_text='username@server-domain')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'federated_users'
+
+    def __str__(self):
+        return self.federated_id
+
+
+class FederatedSubscription(models.Model):
+    """Subscription to a remote project."""
+    server = models.ForeignKey(FederatedServer, on_delete=models.CASCADE, related_name='subscriptions')
+    remote_project_id = models.IntegerField()
+    remote_project_name = models.CharField(max_length=255)
+    local_project = models.ForeignKey(
+        Project, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='federation_subscriptions',
+        help_text='Local mirror project'
+    )
+    last_prompt_id = models.IntegerField(default=0, help_text='Sync cursor')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'federated_subscriptions'
+        unique_together = [('server', 'remote_project_id')]
+
+    def __str__(self):
+        return f"{self.remote_project_name}@{self.server.name}"
+
+
+class FederatedPrompt(models.Model):
+    """Cached prompt from a remote server (read-only mirror)."""
+    subscription = models.ForeignKey(
+        FederatedSubscription, on_delete=models.CASCADE, related_name='prompts'
+    )
+    remote_prompt_id = models.IntegerField()
+    remote_user = models.ForeignKey(
+        FederatedUser, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    content = models.TextField()
+    response_summary = models.TextField(blank=True, default='')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='wip')
+    tag = models.CharField(max_length=20, blank=True, default='')
+    remote_created_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'federated_prompts'
+        unique_together = [('subscription', 'remote_prompt_id')]
+        ordering = ['-remote_created_at']
+
+    def __str__(self):
+        return f"FedPrompt #{self.remote_prompt_id}@{self.subscription.server.name}"
+
+
+class FederatedComment(models.Model):
+    """Comment from/to federated servers."""
+    # One of these will be set
+    prompt = models.ForeignKey(
+        Prompt, on_delete=models.CASCADE, null=True, blank=True,
+        related_name='federated_comments'
+    )
+    federated_prompt = models.ForeignKey(
+        FederatedPrompt, on_delete=models.CASCADE, null=True, blank=True,
+        related_name='federated_comments'
+    )
+    author_name = models.CharField(max_length=255)
+    author_federated_id = models.CharField(max_length=500, blank=True, default='',
+                                           help_text='username@server for remote authors')
+    content = models.TextField(max_length=2000)
+    remote_comment_id = models.CharField(max_length=255, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'federated_comments'
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"FedComment by {self.author_name}"

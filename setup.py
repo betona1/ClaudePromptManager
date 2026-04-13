@@ -11,6 +11,7 @@ setup(
     install_requires=[
         "django>=4.2",
         "djangorestframework>=3.14",
+        "django-allauth>=0.61.0",
         "rich>=13.0.0",
         "redis>=5.0.0",
         "whitenoise>=6.0",

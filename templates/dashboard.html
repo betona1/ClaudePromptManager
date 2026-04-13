@@ -27,10 +27,19 @@
 
 <!-- Stats -->
 <div class="grid grid-5 mb-4">
-    <a href="{% url 'statistics' %}" class="stat-card yellow stat-card-link">
-        <div class="stat-num">{{ today_count }}</div>
-        <div class="stat-label">Today</div>
-    </a>
+    <div class="stat-card yellow stat-card-period" id="period-stat-card"
+         data-today="{{ today_count }}"
+         data-yesterday="{{ yesterday_count }}"
+         data-week="{{ week_count }}"
+         data-month="{{ month_count }}">
+        <button class="period-nav-btn period-nav-prev" type="button" title="Previous (←)">&#8249;</button>
+        <a href="{% url 'statistics' %}" class="period-content" title="Open statistics">
+            <div class="stat-num" id="period-num">{{ today_count }}</div>
+            <div class="stat-label" id="period-label">Today</div>
+        </a>
+        <button class="period-nav-btn period-nav-next" type="button" title="Next (→)">&#8250;</button>
+        <div class="period-dots" id="period-dots"></div>
+    </div>
     <div class="stat-card default">
         <div class="stat-num">{{ total }}</div>
         <div class="stat-label">Total Prompts</div>
@@ -106,6 +115,21 @@
     </div>
 </div>
 
+<!-- Dashboard Tabs -->
+{% if user.is_authenticated %}
+<div class="dashboard-tabs">
+    <a href="?tab=mine" class="dashboard-tab {% if tab == 'mine' %}active{% endif %}">
+        My Projects {% if tab_counts.mine %}<span class="tab-count">{{ tab_counts.mine }}</span>{% endif %}
+    </a>
+    <a href="?tab=community" class="dashboard-tab {% if tab == 'community' %}active{% endif %}">
+        Community {% if tab_counts.community %}<span class="tab-count">{{ tab_counts.community }}</span>{% endif %}
+    </a>
+    <a href="?tab=friends" class="dashboard-tab {% if tab == 'friends' %}active{% endif %}">
+        Friends {% if tab_counts.friends %}<span class="tab-count">{{ tab_counts.friends }}</span>{% endif %}
+    </a>
+</div>
+{% endif %}
+
 <div class="project-cards-grid">
     {% for p in projects %}
     <a href="{% url 'project-detail' p.id %}" class="memo-card {% if p.prompt_count > 500 %}memo-hot{% elif p.prompt_count > 100 %}memo-warm{% endif %}" data-favorited="{{ p.favorited|yesno:'true,false' }}" data-project-id="{{ p.id }}">
@@ -120,7 +144,7 @@
             {% if p.total_tokens %}<div class="memo-card-tokens">{{ p.tokens_display }}<span>tokens</span></div>{% endif %}
         </div>
         <div class="memo-card-header">
-            <div class="memo-card-name">{{ p.name }}</div>
+            <div class="memo-card-name">{{ p.name }}{% if p.owner and tab != 'mine' %}<img src="{{ p.owner.profile.avatar_url }}" alt="" class="memo-card-avatar" title="@{{ p.owner.profile.github_username }}">{% endif %}</div>
             <div class="memo-card-badges">
                 {% if p.hook_prompt_count %}<span class="memo-card-claude-badge" title="Claude Code ({{ p.hook_prompt_count }})">&#10040;</span>{% endif %}
                 <span class="memo-card-todo-badge" data-project-id="{{ p.id }}" data-project-name="{{ p.name }}" title="Goals: {{ p.todo_completed }}/{{ p.todo_total }}">{% if p.todo_total %}<span class="todo-progress">{{ p.todo_completed }}/{{ p.todo_total }}</span>{% else %}<span class="todo-progress-empty">&#9744;</span>{% endif %}</span>

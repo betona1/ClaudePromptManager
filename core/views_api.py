@@ -17,7 +17,7 @@ from django.views.decorators.http import require_POST
 from rest_framework import viewsets, filters
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.response import Response
-from .models import Project, ProjectScreenshot, ProjectTodo, Terminal, Prompt, Template, Session, ServicePort, Execution, GitHubAccount, TelegramBot, TelegramChatId
+from .models import Project, ProjectScreenshot, ProjectTodo, Terminal, Prompt, Template, Session, ServicePort, Execution, GitHubAccount, TelegramBot, TelegramChatId, Comment, UserProfile
 from .serializers import (
     ProjectSerializer, ProjectTodoSerializer, TerminalSerializer,
     PromptSerializer, PromptDetailSerializer, TemplateSerializer,
@@ -134,18 +134,22 @@ def _auto_detect_github_url(project, cwd):
 
 
 @api_view(['POST'])
-@authentication_classes([])
 @permission_classes([])
 def hook_prompt(request):
-    """Remote hook endpoint: receive prompt from external machines."""
+    """Remote hook endpoint: receive prompt from external machines.
+    Supports Bearer token auth for user identification (optional).
+    """
     data = request.data
     prompt_text = data.get('prompt', '').strip()
     session_id = data.get('session_id', '')
     cwd = data.get('cwd', '')
     hostname = data.get('hostname', '')
+    tmux_session = (data.get('tmux_session') or '').strip() or None
 
     if not prompt_text:
         return Response({'status': 'skipped', 'reason': 'empty prompt'})
+
+    owner = request.user if request.user.is_authenticated else None
 
     # Resolve project from cwd
     from pathlib import PurePosixPath, PureWindowsPath
@@ -157,10 +161,15 @@ def hook_prompt(request):
     if not project_name:
         project_name = 'unknown'
 
-    proj, _ = Project.objects.get_or_create(
+    proj, created = Project.objects.get_or_create(
         name=project_name,
-        defaults={'path': cwd, 'description': f'Auto-created from {hostname}'}
+        defaults={'path': cwd, 'description': f'Auto-created from {hostname}', 'owner': owner}
     )
+
+    # Claim unowned project if authenticated
+    if not created and proj.owner is None and owner is not None:
+        proj.owner = owner
+        proj.save(update_fields=['owner'])
 
     # Auto-detect GitHub URL if not set
     if not proj.github_url and cwd:
@@ -172,6 +181,7 @@ def hook_prompt(request):
         status='wip',
         session_id=session_id,
         source='hook',
+        tmux_session=tmux_session,
     )
 
     # Ensure session
@@ -185,10 +195,11 @@ def hook_prompt(request):
 
 
 @api_view(['POST'])
-@authentication_classes([])
 @permission_classes([])
 def hook_import(request):
-    """Import endpoint: receive historical prompts with dedup."""
+    """Import endpoint: receive historical prompts with dedup.
+    Supports Bearer token auth for user identification (optional).
+    """
     data = request.data
     prompt_text = data.get('prompt', '').strip()
     session_id = data.get('session_id', '')
@@ -201,6 +212,8 @@ def hook_import(request):
     if not prompt_text:
         return Response({'status': 'skipped', 'reason': 'empty'})
 
+    owner = request.user if request.user.is_authenticated else None
+
     # Resolve project
     from pathlib import PurePosixPath, PureWindowsPath
     try:
@@ -210,10 +223,14 @@ def hook_import(request):
     if not project_name:
         project_name = 'unknown'
 
-    proj, _ = Project.objects.get_or_create(
+    proj, created = Project.objects.get_or_create(
         name=project_name,
-        defaults={'path': cwd, 'description': f'Imported from {hostname}'}
+        defaults={'path': cwd, 'description': f'Imported from {hostname}', 'owner': owner}
     )
+
+    if not created and proj.owner is None and owner is not None:
+        proj.owner = owner
+        proj.save(update_fields=['owner'])
 
     # Auto-detect GitHub URL
     if not proj.github_url and cwd:
@@ -251,7 +268,6 @@ def hook_import(request):
 
 
 @api_view(['POST'])
-@authentication_classes([])
 @permission_classes([])
 def hook_stop(request):
     """Remote hook endpoint: receive stop event from external machines."""
@@ -1249,3 +1265,83 @@ def telegram_chat_id_delete(request, pk):
 
     obj.delete()
     return Response({'status': 'ok'})
+
+
+# ── Comments ──
+
+@api_view(['GET', 'POST'])
+def prompt_comments(request, pk):
+    """List or add comments on a prompt."""
+    from .permissions import can_view_project
+    prompt = Prompt.objects.select_related('project').filter(pk=pk).first()
+    if not prompt:
+        return Response({'error': 'Not found'}, status=404)
+
+    if not can_view_project(request.user, prompt.project):
+        return Response({'error': 'Access denied'}, status=403)
+
+    if request.method == 'GET':
+        comments = prompt.comments.select_related('author__profile').all()
+        data = []
+        for c in comments:
+            profile = getattr(c.author, 'profile', None)
+            data.append({
+                'id': c.id,
+                'author': profile.github_username if profile else c.author.username,
+                'avatar_url': profile.avatar_url if profile else '',
+                'content': c.content,
+                'created_at': c.created_at.isoformat(),
+                'is_mine': c.author_id == (request.user.id if request.user.is_authenticated else None),
+            })
+        return Response({'comments': data})
+
+    # POST
+    if not request.user.is_authenticated:
+        return Response({'error': 'Login required'}, status=401)
+
+    content = (request.data.get('content') or '').strip()
+    if not content:
+        return Response({'error': 'Content required'}, status=400)
+
+    comment = Comment.objects.create(
+        prompt=prompt, author=request.user, content=content[:2000]
+    )
+    profile = getattr(request.user, 'profile', None)
+    return Response({
+        'id': comment.id,
+        'author': profile.github_username if profile else request.user.username,
+        'avatar_url': profile.avatar_url if profile else '',
+        'content': comment.content,
+        'created_at': comment.created_at.isoformat(),
+    }, status=201)
+
+
+# ── Auth API ──
+
+@api_view(['GET'])
+def api_profile(request):
+    """Get current user profile."""
+    if not request.user.is_authenticated:
+        return Response({'error': 'Not authenticated'}, status=401)
+    profile = getattr(request.user, 'profile', None)
+    if not profile:
+        return Response({'error': 'No profile'}, status=404)
+    return Response({
+        'username': profile.github_username,
+        'avatar_url': profile.avatar_url,
+        'bio': profile.bio,
+        'api_token': profile.api_token,
+        'is_admin': profile.is_admin,
+    })
+
+
+@api_view(['POST'])
+def api_regenerate_token(request):
+    """Regenerate API token."""
+    if not request.user.is_authenticated:
+        return Response({'error': 'Not authenticated'}, status=401)
+    profile = getattr(request.user, 'profile', None)
+    if not profile:
+        return Response({'error': 'No profile'}, status=404)
+    new_token = profile.regenerate_token()
+    return Response({'api_token': new_token})

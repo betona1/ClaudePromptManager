@@ -28,6 +28,32 @@ CPM_SERVER = os.environ.get('CPM_SERVER', 'http://localhost:9200')
 # ============================================================
 
 
+def _detect_tmux_session():
+    """Detect tmux/screen session name. Returns None when not in a multiplexer."""
+    try:
+        if os.environ.get('TMUX'):
+            try:
+                import subprocess
+                out = subprocess.check_output(
+                    ['tmux', 'display-message', '-p', '#S'],
+                    stderr=subprocess.DEVNULL, timeout=2
+                )
+                name = out.decode('utf-8', errors='replace').strip()
+                if name:
+                    return f'tmux:{name}'
+            except Exception:
+                pass
+            pane = os.environ.get('TMUX_PANE')
+            if pane:
+                return f'tmux-pane:{pane}'
+        sty = os.environ.get('STY')
+        if sty:
+            return f'screen:{sty}'
+    except Exception:
+        pass
+    return None
+
+
 def main():
     try:
         data = json.load(sys.stdin)
@@ -38,6 +64,7 @@ def main():
     prompt_text = data.get('prompt', '').strip()
     session_id = data.get('session_id', '')
     cwd = data.get('cwd', os.getcwd())
+    tmux_session = _detect_tmux_session()
 
     if not prompt_text:
         print('{}')
@@ -50,6 +77,7 @@ def main():
             'session_id': session_id,
             'cwd': cwd,
             'hostname': socket.gethostname(),
+            'tmux_session': tmux_session,
         }, ensure_ascii=False).encode('utf-8')
 
         req = urllib.request.Request(
