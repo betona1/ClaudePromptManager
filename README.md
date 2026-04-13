@@ -36,7 +36,7 @@ Claude Code hooks를 통해 프롬프트를 실시간으로 DB에 저장하고, 
 
 - Python 3.8+
 - pip
-- [Claude Code](https://claude.ai/claude-code) (hooks 자동 캡처용)
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (hooks 자동 캡처용)
 
 ### 설치
 
@@ -58,6 +58,8 @@ python3 manage.py cpm_web
 브라우저에서 **http://localhost:9200** 접속
 
 > 설치 후 Claude Code를 사용하면 모든 프롬프트가 자동으로 캡처됩니다.
+
+**초보자용 상세 설치 가이드**: [docs/INSTALL.md](docs/INSTALL.md)
 
 ### Docker 배포
 
@@ -98,13 +100,14 @@ cp .env.example .env
 1. [GitHub Developer Settings](https://github.com/settings/developers) → **New OAuth App**
 2. **Homepage URL**: `http://your-server:9200`
 3. **Authorization callback URL**: `http://your-server:9200/accounts/github/login/callback/`
-4. 발급된 Client ID와 Secret을 환경변수에 설정:
+4. 발급된 Client ID와 Secret을 `.env` 파일에 설정:
    ```bash
    GITHUB_OAUTH_CLIENT_ID=your_client_id
    GITHUB_OAUTH_SECRET=your_secret
    ```
-5. Django Admin(`/admin/`)에서 **Sites** → `example.com`을 실제 도메인으로 변경
-6. **Social Applications** → GitHub 앱 추가 (Client ID, Secret, Sites 연결)
+5. CPM 서버 재시작 — SocialApp이 자동으로 생성됩니다
+
+> **참고**: 환경변수가 설정되지 않으면 "Login with GitHub" 버튼이 자동으로 숨겨집니다.
 
 ### 사용자 기능
 
