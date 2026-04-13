@@ -415,3 +415,161 @@ def redis_publish(channel: str, data: dict):
         r.publish(channel, json.dumps(data, ensure_ascii=False))
     except Exception:
         pass  # Redis is optional
+
+
+# ── Google Sheets integration (hook-side) ──
+
+def _get_sheet_config_from_db(conn: sqlite3.Connection, project_id: int) -> dict:
+    """Read Google Sheets config for the project owner from Django DB.
+
+    Returns dict with keys: url, name, enabled, or empty dict if not configured.
+    Reads from the user_profiles table joined through projects.owner_id.
+    """
+    try:
+        row = conn.execute(
+            """SELECT up.google_sheet_url, up.google_sheet_name,
+                      up.google_sheet_enabled, up.github_username
+               FROM user_profiles up
+               JOIN projects p ON p.owner_id = up.user_id
+               WHERE p.id = ?""",
+            (project_id,)
+        ).fetchone()
+        if row and row['google_sheet_enabled']:
+            return {
+                'url': row['google_sheet_url'],
+                'name': row['google_sheet_name'] or row['github_username'],
+                'enabled': bool(row['google_sheet_enabled']),
+            }
+    except Exception:
+        pass  # Table might not exist in older DBs
+    return {}
+
+
+def google_sheets_append(project_id: int, prompt_id: int, prompt_text: str,
+                         project_name: str, status: str = 'wip', tag: str = ''):
+    """Append a prompt row to Google Sheets. Fire-and-forget, never blocks.
+
+    Reads sheet config from the Django DB (user_profiles table).
+    Uses gspread with service account credentials from environment.
+    """
+    try:
+        import gspread
+        import re
+    except ImportError:
+        return  # gspread not installed
+
+    cred_path = os.environ.get('GOOGLE_SHEETS_CREDENTIALS', '')
+    cred_json_str = os.environ.get('GOOGLE_SHEETS_CREDENTIALS_JSON', '')
+    if not cred_path and not cred_json_str:
+        return  # No credentials configured
+
+    try:
+        db_path = get_db_path()
+        if not db_path.exists():
+            return
+        conn = sqlite3.connect(str(db_path), timeout=5)
+        conn.row_factory = sqlite3.Row
+        config = _get_sheet_config_from_db(conn, project_id)
+        conn.close()
+    except Exception:
+        return
+
+    if not config.get('enabled') or not config.get('url'):
+        return
+
+    try:
+        # Get gspread client
+        if cred_path and os.path.isfile(cred_path):
+            client = gspread.service_account(filename=cred_path)
+        elif cred_json_str:
+            info = json.loads(cred_json_str)
+            client = gspread.service_account_from_dict(info)
+        else:
+            return
+
+        # Extract spreadsheet key
+        m = re.search(r'/spreadsheets/d/([a-zA-Z0-9_-]+)', config['url'])
+        if not m:
+            return
+        spreadsheet = client.open_by_key(m.group(1))
+
+        # Get or create worksheet
+        sheet_name = config['name']
+        try:
+            ws = spreadsheet.worksheet(sheet_name)
+        except Exception:
+            ws = spreadsheet.add_worksheet(title=sheet_name, rows=1000, cols=7)
+
+        # Ensure headers
+        try:
+            first_row = ws.row_values(1)
+        except Exception:
+            first_row = []
+        if not first_row or first_row[0] != 'ID':
+            ws.update('A1:G1', [['ID', '날짜', '프로젝트', '프롬프트', '응답 요약', '상태', '태그']])
+
+        # Append row
+        now = datetime.now().strftime('%Y-%m-%d %H:%M')
+        ws.append_row(
+            [prompt_id, now, project_name, prompt_text[:500], '', status, tag],
+            value_input_option='USER_ENTERED'
+        )
+    except Exception:
+        pass  # Never block Claude Code
+
+
+def google_sheets_update(project_id: int, prompt_id: int,
+                         response_summary: str = '', status: str = 'success'):
+    """Update an existing prompt row in Google Sheets (response summary + status)."""
+    try:
+        import gspread
+        import re
+    except ImportError:
+        return
+
+    cred_path = os.environ.get('GOOGLE_SHEETS_CREDENTIALS', '')
+    cred_json_str = os.environ.get('GOOGLE_SHEETS_CREDENTIALS_JSON', '')
+    if not cred_path and not cred_json_str:
+        return
+
+    try:
+        db_path = get_db_path()
+        if not db_path.exists():
+            return
+        conn = sqlite3.connect(str(db_path), timeout=5)
+        conn.row_factory = sqlite3.Row
+        config = _get_sheet_config_from_db(conn, project_id)
+        conn.close()
+    except Exception:
+        return
+
+    if not config.get('enabled') or not config.get('url'):
+        return
+
+    try:
+        if cred_path and os.path.isfile(cred_path):
+            client = gspread.service_account(filename=cred_path)
+        elif cred_json_str:
+            info = json.loads(cred_json_str)
+            client = gspread.service_account_from_dict(info)
+        else:
+            return
+
+        m = re.search(r'/spreadsheets/d/([a-zA-Z0-9_-]+)', config['url'])
+        if not m:
+            return
+        spreadsheet = client.open_by_key(m.group(1))
+
+        sheet_name = config['name']
+        ws = spreadsheet.worksheet(sheet_name)
+
+        # Find row by prompt ID
+        cell = ws.find(str(prompt_id), in_column=1)
+        if not cell:
+            return
+
+        # Update response summary (E) and status (F)
+        ws.update(f'E{cell.row}:F{cell.row}',
+                  [[(response_summary or '')[:500], status]])
+    except Exception:
+        pass  # Never block Claude Code

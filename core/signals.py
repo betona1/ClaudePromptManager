@@ -120,3 +120,58 @@ def _do_push_prompt(prompt_id):
                 server.save(update_fields=['error_count', 'status'])
     except Exception as e:
         logger.warning(f"Federation push error: {e}")
+
+
+# ── Google Sheets sync ──
+
+@receiver(post_save, sender='core.Prompt')
+def sync_prompt_to_google_sheets(sender, instance, created, **kwargs):
+    """Sync prompt to the owner's Google Sheet (if configured)."""
+    project = instance.project
+    if not project.owner_id:
+        return
+
+    try:
+        profile = project.owner.profile
+    except Exception:
+        return
+
+    if not profile.google_sheet_enabled or not profile.google_sheet_url:
+        return
+
+    if created:
+        t = threading.Thread(
+            target=_do_sheets_append, args=(profile.id, instance.id), daemon=True
+        )
+        t.start()
+    elif instance.response_summary:
+        t = threading.Thread(
+            target=_do_sheets_update, args=(profile.id, instance.id), daemon=True
+        )
+        t.start()
+
+
+def _do_sheets_append(profile_id, prompt_id):
+    """Append prompt to Google Sheet (runs in background thread)."""
+    try:
+        from core.models import UserProfile, Prompt
+        from core.google_sheets import append_prompt_to_sheet
+
+        profile = UserProfile.objects.get(id=profile_id)
+        prompt = Prompt.objects.select_related('project').get(id=prompt_id)
+        append_prompt_to_sheet(profile, prompt)
+    except Exception as e:
+        logger.warning(f"Google Sheets append error: {e}")
+
+
+def _do_sheets_update(profile_id, prompt_id):
+    """Update prompt row in Google Sheet (runs in background thread)."""
+    try:
+        from core.models import UserProfile, Prompt
+        from core.google_sheets import update_prompt_in_sheet
+
+        profile = UserProfile.objects.get(id=profile_id)
+        prompt = Prompt.objects.select_related('project').get(id=prompt_id)
+        update_prompt_in_sheet(profile, prompt)
+    except Exception as e:
+        logger.warning(f"Google Sheets update error: {e}")

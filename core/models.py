@@ -384,6 +384,9 @@ class UserProfile(models.Model):
         max_length=64, unique=True, db_index=True, default=secrets.token_urlsafe
     )
     is_admin = models.BooleanField(default=False)
+    google_sheet_url = models.URLField(blank=True, default='')
+    google_sheet_name = models.CharField(max_length=100, blank=True, default='')
+    google_sheet_enabled = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

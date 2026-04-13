@@ -34,6 +34,62 @@
     </form>
 </div>
 
+<!-- Google Sheets Integration -->
+<div class="settings-section">
+    <h3>Google Sheets Integration</h3>
+    {% if google_sheets_available %}
+    <p style="font-size:13px;color:#6b7280;margin-bottom:8px;">
+        프롬프트가 자동으로 Google Sheet에 기록됩니다.
+    </p>
+    {% if google_service_email %}
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;margin-bottom:12px;">
+        <p style="font-size:12px;color:#1e40af;margin:0 0 4px 0;font-weight:600;">1. 아래 서비스 계정 이메일을 시트에 "편집자"로 공유하세요:</p>
+        <div style="display:flex;align-items:center;gap:8px;">
+            <code id="service-email" style="font-size:12px;background:#dbeafe;padding:4px 8px;border-radius:4px;">{{ google_service_email }}</code>
+            <button class="btn-sm btn-blue" onclick="navigator.clipboard.writeText(document.getElementById('service-email').textContent);this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)">Copy</button>
+        </div>
+        <p style="font-size:11px;color:#3b82f6;margin:6px 0 0 0;">2. 그 다음 아래에 Sheet URL을 입력하고 저장하세요.</p>
+    </div>
+    {% endif %}
+    <form method="POST">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="update_google_sheets">
+        <div style="margin-bottom:10px;">
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">Sheet URL</label>
+            <input type="url" name="google_sheet_url" value="{{ profile.google_sheet_url }}"
+                   placeholder="https://docs.google.com/spreadsheets/d/...../edit"
+                   style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:13px;">
+        </div>
+        <div style="margin-bottom:10px;">
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">시트 탭 이름 <span style="font-weight:400;color:#9ca3af;">(비워두면 GitHub 유저명 사용)</span></label>
+            <input type="text" name="google_sheet_name" value="{{ profile.google_sheet_name }}"
+                   placeholder="{{ profile.github_username }}"
+                   style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:13px;">
+        </div>
+        <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" name="google_sheet_enabled" id="gs-enabled" {% if profile.google_sheet_enabled %}checked{% endif %}
+                   style="width:18px;height:18px;">
+            <label for="gs-enabled" style="font-size:13px;font-weight:600;cursor:pointer;">자동 기록 활성화</label>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button class="btn-sm btn-blue" type="submit">Save</button>
+            <button type="button" class="btn-sm" id="btn-test-sheets"
+                    style="background:#8b5cf6;color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer;">
+                Test Connection
+            </button>
+        </div>
+    </form>
+    <div id="sheets-test-result" style="margin-top:8px;font-size:13px;display:none;padding:8px 12px;border-radius:8px;"></div>
+    {% else %}
+    <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;">
+        <p style="font-size:13px;color:#92400e;margin:0;">
+            Google Sheets 연동을 사용하려면 서버 관리자가 서비스 계정을 설정해야 합니다.
+        </p>
+        <pre style="font-size:11px;color:#78350f;margin:6px 0 0 0;">export GOOGLE_SHEETS_CREDENTIALS=/path/to/service-account.json</pre>
+    </div>
+    {% endif %}
+</div>
+
 <!-- Visibility -->
 <div class="settings-section">
     <h3>Project Visibility</h3>
@@ -51,4 +107,53 @@
     <pre style="background:#f3f4f6;padding:12px;border-radius:8px;font-size:12px;overflow-x:auto;">export CPM_SERVER=http://YOUR_SERVER:9200
 export CPM_API_TOKEN={{ profile.api_token }}</pre>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+    var testBtn = document.getElementById('btn-test-sheets');
+    var resultDiv = document.getElementById('sheets-test-result');
+    if (!testBtn) return;
+
+    testBtn.addEventListener('click', function(){
+        testBtn.disabled = true;
+        testBtn.textContent = 'Testing...';
+        resultDiv.style.display = 'none';
+
+        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        var formData = new FormData();
+        formData.append('action', 'test_google_sheets');
+        if (csrfToken) formData.append('csrfmiddlewaretoken', csrfToken.value);
+
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+            testBtn.disabled = false;
+            testBtn.textContent = 'Test Connection';
+            resultDiv.style.display = 'block';
+            if (data.ok) {
+                resultDiv.style.background = '#d1fae5';
+                resultDiv.style.color = '#065f46';
+                resultDiv.textContent = data.message;
+            } else {
+                resultDiv.style.background = '#fee2e2';
+                resultDiv.style.color = '#991b1b';
+                resultDiv.textContent = data.message;
+            }
+        })
+        .catch(function(e){
+            testBtn.disabled = false;
+            testBtn.textContent = 'Test Connection';
+            resultDiv.style.display = 'block';
+            resultDiv.style.background = '#fee2e2';
+            resultDiv.style.color = '#991b1b';
+            resultDiv.textContent = 'Error: ' + e;
+        });
+    });
+})();
+</script>
 {% endblock %}

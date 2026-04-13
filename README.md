@@ -84,6 +84,8 @@ cp .env.example .env
 | `CPM_API_TOKEN` | (없음) | API 인증 토큰 (멀티유저 모드) |
 | `GITHUB_OAUTH_CLIENT_ID` | (없음) | GitHub OAuth 앱 Client ID |
 | `GITHUB_OAUTH_SECRET` | (없음) | GitHub OAuth 앱 Secret |
+| `GOOGLE_SHEETS_CREDENTIALS` | (없음) | Google 서비스 계정 JSON 파일 경로 |
+| `GOOGLE_SHEETS_CREDENTIALS_JSON` | (없음) | Google 서비스 계정 JSON 인라인 (Docker용) |
 | `delpasswd` | (없음) | 프로젝트 삭제 비밀번호 |
 
 ---
@@ -213,6 +215,114 @@ curl https://cpm.example.com/.well-known/cpm-federation
 
 ---
 
+## Google Sheets 연동
+
+프롬프트를 자동으로 Google Sheets에 기록합니다. 멀티유저 환경에서 각 유저가 자신의 시트에 독립적으로 기록.
+
+### 데이터 기록 경로와 누락 방지 설계
+
+CPM은 프롬프트를 **두 가지 경로**로 수신합니다. 두 경로 모두 Google Sheets 연동이 적용되어 있어 **누락이 발생하지 않습니다.**
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  프롬프트 입력 (Claude Code 사용 중)                               │
+├──────────────────┬───────────────────────────────────────────────┤
+│  경로 1: 로컬    │  경로 2: 원격 (다른 머신에서 CPM 서버로)          │
+│  on_prompt.py    │  POST /api/hook/prompt/                       │
+│  ↓               │  ↓                                            │
+│  SQLite INSERT   │  Django ORM save()                            │
+│  ↓               │  ↓                                            │
+│  shared.py       │  signals.py                                   │
+│  google_sheets   │  sync_prompt_to                               │
+│  _append()       │  _google_sheets()                             │
+│  (daemon thread) │  (daemon thread)                              │
+├──────────────────┴───────────────────────────────────────────────┤
+│  → Google Sheets에 행 추가 (두 경로 모두 지원)                      │
+│  → print('{}') 먼저 출력 → Claude Code 절대 블로킹 없음             │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+| 상황 | DB 기록 | Sheets 기록 | 비고 |
+|------|---------|-------------|------|
+| 로컬에서 Claude Code 사용 | O (hook → SQLite) | O (hook → daemon thread) | 실시간 |
+| 원격 서버로 전송 | O (API → Django ORM) | O (signal → daemon thread) | 실시간 |
+| Claude 작업 중 추가 프롬프트 | O | O | 매 프롬프트마다 hook 발동 |
+| 응답 완료 (on_stop) | O (상태 업데이트) | O (시트 행 업데이트) | 응답요약+상태 갱신 |
+| Sheets 설정 전 과거 데이터 | O (DB에 보존) | X → `cpm_sheets_sync`로 복구 | 일괄 동기화 |
+| Sheets API 일시 장애 | O (DB 정상) | X → 다음 프롬프트부터 정상 | DB가 원본 |
+
+### 누락이 발생하는 유일한 경우와 조치
+
+**Google Sheets에 기록이 안 되는 경우:**
+
+1. **서비스 계정 미설정** — `GOOGLE_SHEETS_CREDENTIALS` 환경변수 없음
+2. **유저가 Sheets 미설정** — `/settings/`에서 URL 미입력 또는 비활성화
+3. **시트 권한 미부여** — 서비스 계정 이메일을 시트에 편집자로 공유 안 함
+4. **Google API 일시 장애** — 네트워크/API 문제 (자동 복구 안 됨)
+
+> **중요**: 위 모든 경우에도 **CPM DB(SQLite)에는 100% 기록**됩니다. Sheets는 부가 기능이며, DB가 원본 데이터입니다.
+
+**조치 방법 — 과거 데이터 일괄 동기화:**
+
+```bash
+# 전체 프롬프트 일괄 동기화
+python3 manage.py cpm_sheets_sync
+
+# 최근 30일만
+python3 manage.py cpm_sheets_sync --days 30
+
+# 특정 유저만
+python3 manage.py cpm_sheets_sync --user your_github_username
+
+# 특정 프로젝트만
+python3 manage.py cpm_sheets_sync --project my-project
+
+# 미리보기 (실제 기록 안 함)
+python3 manage.py cpm_sheets_sync --dry-run
+```
+
+### 설정 방법
+
+#### Step 1: 서버 관리자 — 서비스 계정 설정
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → 프로젝트 생성 (또는 기존 프로젝트)
+2. **API 및 서비스** → **라이브러리** → "Google Sheets API" 검색 → **사용 설정**
+3. **API 및 서비스** → **사용자 인증 정보** → **서비스 계정 만들기**
+4. 서비스 계정 상세 → **키** 탭 → **키 추가** → JSON → 다운로드
+5. JSON 파일을 서버에 배치하고 환경변수 설정:
+
+```bash
+# .env 파일 또는 환경변수
+GOOGLE_SHEETS_CREDENTIALS=/path/to/service-account-key.json
+
+# 또는 인라인 JSON (Docker 등)
+GOOGLE_SHEETS_CREDENTIALS_JSON='{"type":"service_account","project_id":"...","private_key":"..."}'
+```
+
+6. CPM 서버 재시작
+
+#### Step 2: 각 유저 — 시트 연결
+
+1. Google Sheets에서 새 스프레드시트 생성 (또는 기존 시트 사용)
+2. 시트를 서비스 계정 이메일(예: `cpm@my-project.iam.gserviceaccount.com`)과 **편집자**로 공유
+3. CPM 웹 → `/settings/` 페이지:
+   - **Sheet URL** 붙여넣기
+   - **시트 탭 이름** 입력 (비워두면 GitHub 유저명 사용)
+   - **자동 기록 활성화** 체크
+   - **Save** 클릭
+4. **Test Connection** 버튼으로 연결 확인
+
+#### 기록 포맷
+
+| ID | 날짜 | 프로젝트 | 프롬프트 | 응답 요약 | 상태 | 태그 |
+|----|------|---------|---------|----------|------|------|
+| 1234 | 2026-04-14 15:30 | cpm | Fix login bug... | Fixed by... | success | bug |
+
+- 프롬프트 입력 시: 행 추가 (상태=wip, 응답 요약=빈칸)
+- 응답 완료 시: 해당 행의 응답 요약과 상태 업데이트
+
+---
+
 ## 웹 UI 가이드
 
 ### 대시보드 (`/`)
@@ -256,6 +366,7 @@ python3 manage.py cpm_tokens            # 토큰 사용량 집계
 python3 manage.py cpm_federation init   # Federation 초기화
 python3 manage.py cpm_federation status # Federation 상태
 python3 manage.py cpm_federation sync   # Federation 동기화
+python3 manage.py cpm_sheets_sync      # Google Sheets 일괄 동기화
 
 # v2 CLI
 cpm2 board                    # 대시보드

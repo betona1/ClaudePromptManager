@@ -1009,8 +1009,9 @@ def unfollow_user(request, username):
 
 
 def user_settings(request):
-    """User settings page (API token, bio)."""
+    """User settings page (API token, bio, Google Sheets)."""
     from django.shortcuts import redirect
+    from django.http import JsonResponse
     if not request.user.is_authenticated:
         return redirect('github_login')
 
@@ -1023,10 +1024,26 @@ def user_settings(request):
             profile.save(update_fields=['bio', 'updated_at'])
         elif action == 'regenerate_token':
             profile.regenerate_token()
-        return redirect('user-settings')
+        elif action == 'update_google_sheets':
+            profile.google_sheet_url = request.POST.get('google_sheet_url', '').strip()
+            profile.google_sheet_name = request.POST.get('google_sheet_name', '').strip()[:100]
+            profile.google_sheet_enabled = request.POST.get('google_sheet_enabled') == 'on'
+            profile.save(update_fields=[
+                'google_sheet_url', 'google_sheet_name',
+                'google_sheet_enabled', 'updated_at'
+            ])
+        elif action == 'test_google_sheets':
+            from core.google_sheets import test_sheet_connection
+            result = test_sheet_connection(profile)
+            return JsonResponse(result)
+        if action != 'test_google_sheets':
+            return redirect('user-settings')
 
+    from core.google_sheets import is_available as gs_available, get_service_email
     context = {
         'profile': profile,
+        'google_sheets_available': gs_available(),
+        'google_service_email': get_service_email(),
     }
     return render(request, 'user_settings.html', context)
 

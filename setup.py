@@ -15,6 +15,7 @@ setup(
         "rich>=13.0.0",
         "redis>=5.0.0",
         "whitenoise>=6.0",
+        "gspread>=6.0.0",
     ],
     entry_points={
         "console_scripts": [

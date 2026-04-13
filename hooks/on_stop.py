@@ -20,7 +20,7 @@ import json
 import os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from shared import get_db, ensure_tables, redis_publish, remote_post
+from shared import get_db, ensure_tables, redis_publish, remote_post, google_sheets_update
 
 
 def truncate(text: str, max_len: int = 500) -> str:
@@ -48,19 +48,24 @@ def main():
         print('{}')
         return
 
+    prompt_id = None
+    project_id = None
+
     try:
         conn = get_db()
         ensure_tables(conn)
 
         # Find the most recent wip prompt for this session
         row = conn.execute(
-            """SELECT id FROM prompts
+            """SELECT id, project_id FROM prompts
                WHERE session_id=? AND status='wip'
                ORDER BY created_at DESC LIMIT 1""",
             (session_id,)
         ).fetchone()
 
         if row:
+            prompt_id = row['id']
+            project_id = row['project_id']
             summary = truncate(last_message)
             conn.execute(
                 """UPDATE prompts SET
@@ -68,13 +73,13 @@ def main():
                     status='success',
                     updated_at=datetime('now','localtime')
                    WHERE id=?""",
-                (summary, row['id'])
+                (summary, prompt_id)
             )
             conn.commit()
 
             redis_publish('cpm:live', {
                 'event': 'prompt_done',
-                'prompt_id': row['id'],
+                'prompt_id': prompt_id,
                 'session_id': session_id,
                 'response_summary': summary[:200],
             })
@@ -92,7 +97,20 @@ def main():
     except Exception:
         pass
 
+    # Always output valid JSON first
     print('{}')
+
+    # Google Sheets update (fire-and-forget, after stdout)
+    if prompt_id and project_id:
+        try:
+            import threading
+            threading.Thread(
+                target=google_sheets_update,
+                args=(project_id, prompt_id, truncate(last_message), 'success'),
+                daemon=True,
+            ).start()
+        except Exception:
+            pass
 
 
 if __name__ == '__main__':

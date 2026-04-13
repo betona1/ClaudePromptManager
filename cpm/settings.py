@@ -168,6 +168,9 @@ CPM_DEL_PASSWORD = os.environ.get('delpasswd', '')
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', '')
 GITHUB_USERNAME = os.environ.get('GITHUB_USERNAME', '')
 
+# Google Sheets integration (optional)
+GOOGLE_SHEETS_CREDENTIALS = os.environ.get('GOOGLE_SHEETS_CREDENTIALS', '')
+
 # Redis (optional, for Phase 2 real-time)
 CPM_REDIS_URL = os.environ.get('CPM_REDIS_URL', 'redis://localhost:6379/0')
 CPM_REDIS_CHANNEL = 'cpm:live'

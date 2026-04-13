@@ -21,7 +21,7 @@ import os
 
 # Add parent directory to path for shared import
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from shared import get_db, ensure_tables, resolve_project_by_path, ensure_session, auto_detect_github_url, redis_publish, remote_post, backup_hooks_settings, detect_tmux_session
+from shared import get_db, ensure_tables, resolve_project_by_path, ensure_session, auto_detect_github_url, redis_publish, remote_post, backup_hooks_settings, detect_tmux_session, google_sheets_append
 
 
 def main():
@@ -40,6 +40,9 @@ def main():
     if not prompt_text:
         print('{}')
         return
+
+    project_id = None
+    prompt_id = None
 
     try:
         conn = get_db()
@@ -95,7 +98,21 @@ def main():
     except Exception:
         pass
 
+    # Always output valid JSON first (never block Claude Code)
     print('{}')
+
+    # Google Sheets sync (fire-and-forget, after stdout)
+    if project_id and prompt_id:
+        try:
+            import threading
+            project_name = os.path.basename(cwd)
+            threading.Thread(
+                target=google_sheets_append,
+                args=(project_id, prompt_id, prompt_text, project_name),
+                daemon=True,
+            ).start()
+        except Exception:
+            pass
 
 
 if __name__ == '__main__':
