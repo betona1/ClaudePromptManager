@@ -20,13 +20,81 @@ import json
 import os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from shared import get_db, ensure_tables, redis_publish, remote_post, google_sheets_update
+from shared import (get_db, ensure_tables, resolve_project_by_path,
+                    redis_publish, remote_post, google_sheets_update,
+                    google_sheets_append)
 
 
 def truncate(text: str, max_len: int = 500) -> str:
     if not text:
         return ''
     return text[:max_len-3] + '...' if len(text) > max_len else text
+
+
+def recover_queued_messages(conn, transcript_path, session_id, project_id):
+    """Recover mid-turn user messages from transcript queue-operations.
+
+    When a user sends messages while Claude is executing tools, they are
+    recorded as type='queue-operation', operation='enqueue' in the transcript
+    JSONL but do NOT trigger the UserPromptSubmit hook. This function finds
+    those messages and inserts them into the DB.
+    """
+    if not transcript_path or not os.path.isfile(transcript_path):
+        return []
+
+    recovered = []
+    try:
+        queued_msgs = []
+        with open(transcript_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+                if (obj.get('type') == 'queue-operation'
+                        and obj.get('operation') == 'enqueue'
+                        and obj.get('content', '').strip()):
+                    queued_msgs.append({
+                        'content': obj['content'].strip(),
+                        'timestamp': obj.get('timestamp', ''),
+                    })
+
+        if not queued_msgs:
+            return []
+
+        # Check which queued messages are already in DB (by exact content + session)
+        for msg in queued_msgs:
+            existing = conn.execute(
+                """SELECT id FROM prompts
+                   WHERE session_id=? AND content=? LIMIT 1""",
+                (session_id, msg['content'])
+            ).fetchone()
+
+            if not existing:
+                cursor = conn.execute(
+                    """INSERT INTO prompts
+                       (project_id, content, status, session_id, source,
+                        created_at, updated_at)
+                       VALUES (?, ?, 'success', ?, 'hook-queue',
+                               datetime('now','localtime'),
+                               datetime('now','localtime'))""",
+                    (project_id, msg['content'], session_id)
+                )
+                recovered.append({
+                    'id': cursor.lastrowid,
+                    'content': msg['content'],
+                })
+
+        if recovered:
+            conn.commit()
+
+    except Exception:
+        pass  # Never block Claude Code
+
+    return recovered
 
 
 def main():
@@ -43,6 +111,8 @@ def main():
 
     session_id = data.get('session_id', '')
     last_message = data.get('last_assistant_message', '')
+    transcript_path = data.get('transcript_path', '')
+    cwd = data.get('cwd', os.getcwd())
 
     if not session_id or not last_message:
         print('{}')
@@ -84,9 +154,25 @@ def main():
                 'response_summary': summary[:200],
             })
 
+        # Recover mid-turn queued messages from transcript
+        if project_id:
+            recovered = recover_queued_messages(
+                conn, transcript_path, session_id, project_id
+            )
+        else:
+            # Fallback: resolve project from cwd
+            try:
+                pid = resolve_project_by_path(conn, cwd)
+                recovered = recover_queued_messages(
+                    conn, transcript_path, session_id, pid
+                )
+                project_id = pid
+            except Exception:
+                recovered = []
+
         conn.close()
     except Exception:
-        pass  # Never block Claude Code
+        recovered = []  # Never block Claude Code
 
     # Sync to remote server if configured (CPM_REMOTE_SERVER env)
     try:
@@ -109,6 +195,21 @@ def main():
                 args=(project_id, prompt_id, truncate(last_message), 'success'),
                 daemon=True,
             ).start()
+        except Exception:
+            pass
+
+    # Google Sheets append for recovered queued messages
+    if recovered and project_id:
+        try:
+            import threading
+            project_name = os.path.basename(cwd)
+            for rec in recovered:
+                threading.Thread(
+                    target=google_sheets_append,
+                    args=(project_id, rec['id'], rec['content'], project_name,
+                          'success', ''),
+                    daemon=True,
+                ).start()
         except Exception:
             pass
 
