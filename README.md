@@ -11,7 +11,8 @@ Claude Code hooks를 통해 프롬프트를 실시간으로 DB에 저장하고, 
 
 ## 주요 기능
 
-- **자동 프롬프트 캡처** — Claude Code hooks로 모든 프롬프트/응답 자동 저장
+- **자동 프롬프트 캡처** — Claude Code hooks로 모든 프롬프트/응답 자동 저장 (중간 입력 자동 복구 포함)
+- **Google Sheets 연동** — 프롬프트를 사용자별 Google Sheets에 자동 기록 + 과거 데이터 일괄 동기화
 - **웹 대시보드** — 프로젝트별 통계, 토큰 사용량, 작업일수 시각화
 - **멀티유저** — GitHub OAuth 로그인, 프로젝트 소유권, 공개범위 설정 (public/private/friends)
 - **댓글 시스템** — 프롬프트에 대한 댓글 (AJAX 기반)
@@ -472,6 +473,7 @@ ClaudePromptManager/
 ├── static/css/ + js/             # 프론트엔드
 └── docs/                         # 문서
     ├── ARCHITECTURE.md           # 기술 아키텍처
+    ├── PROMPT_CAPTURE.md         # 프롬프트 캡처 & 누락 방지 기술 문서
     └── REMOTE_HOOKS_SETUP.md     # 원격 Hook 설정
 ```
 
