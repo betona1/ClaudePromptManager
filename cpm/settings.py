@@ -41,6 +41,13 @@ DEBUG = os.environ.get('CPM_DEBUG', 'true').lower() in ('true', '1')
 
 ALLOWED_HOSTS = os.environ.get('CPM_ALLOWED_HOSTS', '*').split(',')
 
+# CSRF & Proxy settings for Cloudflare Tunnel (HTTPS)
+CSRF_TRUSTED_ORIGINS = [
+    f'https://{h.strip()}' for h in os.environ.get('CPM_ALLOWED_HOSTS', '').split(',')
+    if h.strip() and h.strip() != '*'
+]
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -53,6 +60,7 @@ INSTALLED_APPS = [
     'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.github',
+    'allauth.socialaccount.providers.google',
     'rest_framework',
     'core',
 ]
@@ -139,8 +147,9 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 ACCOUNT_LOGIN_BY_CODE_ENABLED = False
-ACCOUNT_LOGIN_METHODS = {'username'}
-ACCOUNT_SIGNUP_FIELDS = ['username*']
+ACCOUNT_LOGIN_METHODS = {'username', 'email'}
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*']
+ACCOUNT_EMAIL_VERIFICATION = 'none'
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_LOGIN_ON_GET = True
 LOGIN_REDIRECT_URL = '/'
@@ -154,7 +163,15 @@ SOCIALACCOUNT_PROVIDERS = {
             'secret': os.environ.get('GITHUB_OAUTH_SECRET', ''),
         },
         'SCOPE': ['read:user', 'user:email'],
-    }
+    },
+    'google': {
+        'APP': {
+            'client_id': os.environ.get('GOOGLE_OAUTH_CLIENT_ID', ''),
+            'secret': os.environ.get('GOOGLE_OAUTH_SECRET', ''),
+        },
+        'SCOPE': ['profile', 'email'],
+        'AUTH_PARAMS': {'access_type': 'online'},
+    },
 }
 
 # CPM-specific settings

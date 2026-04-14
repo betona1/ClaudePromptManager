@@ -13,20 +13,34 @@ logger = logging.getLogger(__name__)
 
 @receiver(user_signed_up)
 def create_profile_on_signup(sender, request, user, **kwargs):
-    """Create UserProfile when a new user signs up via GitHub OAuth."""
+    """Create UserProfile when a new user signs up (GitHub/Google/username)."""
     from core.models import UserProfile, Project
 
-    social_accounts = user.socialaccount_set.filter(provider='github')
     github_username = user.username
     avatar_url = ''
     bio = ''
 
-    if social_accounts.exists():
-        sa = social_accounts.first()
-        extra = sa.extra_data
+    # GitHub OAuth
+    github_accounts = user.socialaccount_set.filter(provider='github')
+    if github_accounts.exists():
+        extra = github_accounts.first().extra_data
         github_username = extra.get('login', user.username)
         avatar_url = extra.get('avatar_url', '')
         bio = extra.get('bio', '') or ''
+
+    # Google OAuth
+    google_accounts = user.socialaccount_set.filter(provider='google')
+    if google_accounts.exists():
+        extra = google_accounts.first().extra_data
+        if not avatar_url:
+            avatar_url = extra.get('picture', '')
+        if not bio:
+            bio = extra.get('name', '') or ''
+        if github_username == user.username:
+            # Use Google email prefix as display name
+            email = extra.get('email', '')
+            if email:
+                github_username = email.split('@')[0]
 
     profile, created = UserProfile.objects.get_or_create(
         user=user,

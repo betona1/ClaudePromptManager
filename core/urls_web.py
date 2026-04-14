@@ -19,6 +19,8 @@ urlpatterns = [
     path('federation/', views_web.federation_page, name='federation'),
     # User pages
     path('login/github/', RedirectView.as_view(url='/accounts/github/login/'), name='github_login'),
+    path('login/google/', RedirectView.as_view(url='/accounts/google/login/'), name='google_login'),
+    path('community/', views_web.community_page, name='community'),
     path('settings/', views_web.user_settings, name='user-settings'),
     path('@<str:username>/', views_web.user_profile, name='user-profile'),
     path('@<str:username>/follow/', views_web.follow_user, name='follow-user'),

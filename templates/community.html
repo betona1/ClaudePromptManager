@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Community — CPM{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 style="margin:24px 0 16px; font-size:22px;">Community Projects</h1>
+
+    <div class="dashboard-tabs">
+        <a href="/" class="dashboard-tab">My Projects</a>
+        <a href="{% url 'community' %}" class="dashboard-tab {% if tab == 'community' %}active{% endif %}">
+            Community {% if tab_counts.community %}<span class="tab-count">{{ tab_counts.community }}</span>{% endif %}
+        </a>
+        {% if user.is_authenticated %}
+        <a href="{% url 'community' %}?tab=friends" class="dashboard-tab {% if tab == 'friends' %}active{% endif %}">
+            Friends {% if tab_counts.friends %}<span class="tab-count">{{ tab_counts.friends }}</span>{% endif %}
+        </a>
+        {% endif %}
+    </div>
+
+    <div class="project-cards-grid">
+        {% for p in projects %}
+        <a href="{% url 'project-detail' p.id %}" class="memo-card {% if p.prompt_count > 500 %}memo-hot{% elif p.prompt_count > 100 %}memo-warm{% endif %}">
+            <div class="memo-card-top-icons">
+                {% if p.today_count %}<span class="memo-card-today" title="Today: {{ p.today_count }}">{{ p.today_count }}</span>{% endif %}
+            </div>
+            <div class="memo-card-top">
+                <div class="memo-card-days">{{ p.working_days }}<span>days</span></div>
+                {% if p.total_tokens %}<div class="memo-card-tokens">{{ p.tokens_display }}<span>tokens</span></div>{% endif %}
+            </div>
+            <div class="memo-card-header">
+                <div class="memo-card-name">
+                    {{ p.name }}
+                    {% if p.owner %}<img src="{{ p.owner.profile.avatar_url }}" alt="" class="memo-card-avatar" title="@{{ p.owner.profile.github_username }}">{% endif %}
+                </div>
+                <div class="memo-card-badges">
+                    {% if p.visibility and p.visibility != 'public' %}<span class="memo-card-vis-badge memo-card-vis-{{ p.visibility }}" title="{{ p.visibility }}">{% if p.visibility == 'private' %}&#128274;{% else %}&#128101;{% endif %}</span>{% endif %}
+                    {% if p.hook_prompt_count %}<span class="memo-card-claude-badge" title="Claude Code ({{ p.hook_prompt_count }})">&#10040;</span>{% endif %}
+                    <div class="memo-card-badge">{{ p.prompt_count }}</div>
+                </div>
+            </div>
+            {% if p.description %}
+            <div class="memo-card-desc">{{ p.description }}</div>
+            {% endif %}
+        </a>
+        {% empty %}
+        <div style="padding:40px; text-align:center; color:#9ca3af; grid-column:1/-1;">
+            {% if tab == 'friends' %}
+                아직 친구의 프로젝트가 없습니다. 다른 사용자를 팔로우하세요.
+            {% else %}
+                아직 공개된 프로젝트가 없습니다.
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

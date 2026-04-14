@@ -16,6 +16,8 @@ setup(
         "redis>=5.0.0",
         "whitenoise>=6.0",
         "gspread>=6.0.0",
+        "PyJWT>=2.0.0",
+        "cryptography>=3.0",
     ],
     entry_points={
         "console_scripts": [

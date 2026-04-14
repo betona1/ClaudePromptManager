@@ -3,7 +3,7 @@ import os
 from datetime import datetime, date, timedelta
 from pathlib import Path
 from django.conf import settings
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse, HttpResponse
 from django.db.models import Count, Q, Max, Min, Sum, Exists, OuterRef
 from django.db.models.functions import TruncHour, TruncDate
@@ -41,48 +41,14 @@ def _attach_working_days(projects):
 
 
 def dashboard(request):
-    """Main dashboard with overview stats and user tabs."""
+    """Personal dashboard — login required, shows only my projects."""
     user = request.user
-    tab = request.GET.get('tab', '')
+    if not user.is_authenticated:
+        return redirect('account_login')
 
-    # Base queryset respecting visibility
-    base_qs = visible_projects_queryset(user)
+    tab = 'mine'
 
-    # Tab filtering
-    if user.is_authenticated:
-        if not tab:
-            tab = 'mine'
-        if tab == 'mine':
-            projects_qs = base_qs.filter(owner=user)
-        elif tab == 'friends':
-            friend_ids = list(
-                Follow.objects.filter(follower=user).values_list('following_id', flat=True)
-            )
-            mutual_ids = list(
-                Follow.objects.filter(follower_id__in=friend_ids, following=user)
-                .values_list('follower_id', flat=True)
-            )
-            projects_qs = base_qs.filter(owner_id__in=mutual_ids).exclude(owner=user)
-        else:  # community
-            tab = 'community'
-            projects_qs = base_qs.filter(visibility='public')
-    else:
-        tab = 'community'
-        projects_qs = base_qs
-
-    # Tab counts
-    tab_counts = {}
-    if user.is_authenticated:
-        tab_counts['mine'] = base_qs.filter(owner=user).count()
-        tab_counts['community'] = base_qs.filter(visibility='public').count()
-        friend_ids = list(
-            Follow.objects.filter(follower=user).values_list('following_id', flat=True)
-        )
-        mutual_ids = list(
-            Follow.objects.filter(follower_id__in=friend_ids, following=user)
-            .values_list('follower_id', flat=True)
-        )
-        tab_counts['friends'] = base_qs.filter(owner_id__in=mutual_ids).exclude(owner=user).count()
+    projects_qs = Project.objects.filter(owner=user)
 
     projects = projects_qs.prefetch_related('screenshots', 'todos').annotate(
         prompt_count=Count('prompts', distinct=True),
@@ -93,33 +59,36 @@ def dashboard(request):
         has_docker=Exists(ServicePort.objects.filter(project=OuterRef('pk'), is_docker=True)),
     ).order_by('-favorited', '-latest_at')
 
-    total = Prompt.objects.count()
+    my_projects = Project.objects.filter(owner=user)
+    my_prompts = Prompt.objects.filter(project__owner=user)
 
-    recent_prompts = Prompt.objects.select_related('project').order_by('-created_at')[:15]
+    total = my_prompts.count()
 
-    # Calculate total working days (distinct dates across all prompts)
-    total_days = len(Prompt.objects.dates('created_at', 'day'))
+    recent_prompts = my_prompts.select_related('project').order_by('-created_at')[:15]
+
+    # Calculate total working days (distinct dates across my prompts)
+    total_days = len(my_prompts.dates('created_at', 'day'))
 
     _attach_working_days(projects)
 
-    # Total tokens
-    token_agg = Project.objects.aggregate(
+    # Total tokens (my projects)
+    token_agg = my_projects.aggregate(
         total_in=Sum('total_input_tokens'),
         total_out=Sum('total_output_tokens'),
     )
     total_tokens = (token_agg['total_in'] or 0) + (token_agg['total_out'] or 0)
 
-    services = ServicePort.objects.select_related('project').all()
+    services = ServicePort.objects.select_related('project').filter(project__owner=user)
 
-    # Period prompt counts (today / yesterday / last 7 days / last 30 days)
+    # Period prompt counts (my prompts only)
     today = date.today()
     yesterday = today - timedelta(days=1)
-    week_start = today - timedelta(days=6)   # last 7 days inclusive
-    month_start = today - timedelta(days=29)  # last 30 days inclusive
-    today_count = Prompt.objects.filter(created_at__date=today).count()
-    yesterday_count = Prompt.objects.filter(created_at__date=yesterday).count()
-    week_count = Prompt.objects.filter(created_at__date__gte=week_start, created_at__date__lte=today).count()
-    month_count = Prompt.objects.filter(created_at__date__gte=month_start, created_at__date__lte=today).count()
+    week_start = today - timedelta(days=6)
+    month_start = today - timedelta(days=29)
+    today_count = my_prompts.filter(created_at__date=today).count()
+    yesterday_count = my_prompts.filter(created_at__date=yesterday).count()
+    week_count = my_prompts.filter(created_at__date__gte=week_start, created_at__date__lte=today).count()
+    month_count = my_prompts.filter(created_at__date__gte=month_start, created_at__date__lte=today).count()
 
     # Hook health check
     import sys
@@ -138,15 +107,66 @@ def dashboard(request):
         'yesterday_count': yesterday_count,
         'week_count': week_count,
         'month_count': month_count,
-        'hook_count': Prompt.objects.filter(source='hook').count(),
-        'import_count': Prompt.objects.filter(source='import').count(),
+        'hook_count': my_prompts.filter(source='hook').count(),
+        'import_count': my_prompts.filter(source='import').count(),
         'services': services,
         'hooks_ok': hooks_health['ok'],
         'hooks_health': hooks_health,
         'tab': tab,
-        'tab_counts': tab_counts,
     }
     return render(request, 'dashboard.html', context)
+
+
+def community_page(request):
+    """Community page — public/shared projects from all users."""
+    user = request.user
+    tab = request.GET.get('tab', 'community')
+
+    base_qs = visible_projects_queryset(user)
+
+    if tab == 'friends' and user.is_authenticated:
+        friend_ids = list(
+            Follow.objects.filter(follower=user).values_list('following_id', flat=True)
+        )
+        mutual_ids = list(
+            Follow.objects.filter(follower_id__in=friend_ids, following=user)
+            .values_list('follower_id', flat=True)
+        )
+        projects_qs = base_qs.filter(owner_id__in=mutual_ids).exclude(owner=user)
+    else:
+        tab = 'community'
+        projects_qs = base_qs.filter(visibility='public')
+
+    # Tab counts
+    tab_counts = {
+        'community': base_qs.filter(visibility='public').count(),
+    }
+    if user.is_authenticated:
+        friend_ids = list(
+            Follow.objects.filter(follower=user).values_list('following_id', flat=True)
+        )
+        mutual_ids = list(
+            Follow.objects.filter(follower_id__in=friend_ids, following=user)
+            .values_list('follower_id', flat=True)
+        )
+        tab_counts['friends'] = base_qs.filter(owner_id__in=mutual_ids).exclude(owner=user).count()
+
+    projects = projects_qs.prefetch_related('screenshots', 'todos').annotate(
+        prompt_count=Count('prompts', distinct=True),
+        latest_at=Max('prompts__created_at'),
+        hook_prompt_count=Count('prompts', filter=Q(prompts__source__in=['hook', 'import']), distinct=True),
+        todo_total=Count('todos', distinct=True),
+        todo_completed=Count('todos', filter=Q(todos__is_completed=True), distinct=True),
+        has_docker=Exists(ServicePort.objects.filter(project=OuterRef('pk'), is_docker=True)),
+    ).order_by('-latest_at')
+
+    _attach_working_days(projects)
+
+    return render(request, 'community.html', {
+        'projects': projects,
+        'tab': tab,
+        'tab_counts': tab_counts,
+    })
 
 
 def project_list(request):

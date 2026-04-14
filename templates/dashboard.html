@@ -115,20 +115,11 @@
     </div>
 </div>
 
-<!-- Dashboard Tabs -->
-{% if user.is_authenticated %}
+<!-- Dashboard Header -->
 <div class="dashboard-tabs">
-    <a href="?tab=mine" class="dashboard-tab {% if tab == 'mine' %}active{% endif %}">
-        My Projects {% if tab_counts.mine %}<span class="tab-count">{{ tab_counts.mine }}</span>{% endif %}
-    </a>
-    <a href="?tab=community" class="dashboard-tab {% if tab == 'community' %}active{% endif %}">
-        Community {% if tab_counts.community %}<span class="tab-count">{{ tab_counts.community }}</span>{% endif %}
-    </a>
-    <a href="?tab=friends" class="dashboard-tab {% if tab == 'friends' %}active{% endif %}">
-        Friends {% if tab_counts.friends %}<span class="tab-count">{{ tab_counts.friends }}</span>{% endif %}
-    </a>
+    <a href="/" class="dashboard-tab active">My Projects</a>
+    <a href="{% url 'community' %}" class="dashboard-tab">Community</a>
 </div>
-{% endif %}
 
 <div class="project-cards-grid">
     {% for p in projects %}

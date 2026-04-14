@@ -14,6 +14,7 @@
             <div class="nav-left">
                 <a href="{% url 'dashboard' %}" class="logo">Claude <span>Prompt Manager</span></a>
                 <a href="{% url 'dashboard' %}" {% if request.path == '/' %}class="active"{% endif %}>Dashboard</a>
+                <a href="{% url 'community' %}" {% if '/community' in request.path %}class="active"{% endif %}>Community</a>
                 <a href="{% url 'project-list' %}" {% if '/projects' in request.path %}class="active"{% endif %}>Projects</a>
                 <a href="{% url 'prompt-list' %}" {% if '/prompts' in request.path %}class="active"{% endif %}>Prompts</a>
                 <a href="{% url 'statistics' %}" {% if '/stats' in request.path %}class="active"{% endif %}>Stats</a>
