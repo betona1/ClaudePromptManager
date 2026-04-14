@@ -17,15 +17,13 @@ python manage.py migrate --noinput
 echo "Collecting static files..."
 python manage.py collectstatic --noinput 2>/dev/null || true
 
-# Update Site domain from CPM_ALLOWED_HOSTS
+# Update Site domain from CPM_ALLOWED_HOSTS (no port for HTTPS domains)
 python manage.py shell -c "
 from django.contrib.sites.models import Site
 import os
 hosts = os.environ.get('CPM_ALLOWED_HOSTS', '*')
 if hosts and hosts != '*':
     domain = hosts.split(',')[0].strip()
-    if ':' not in domain:
-        domain += ':9200'
     Site.objects.filter(id=1).update(domain=domain, name='CPM')
 " 2>/dev/null || true
 

@@ -158,17 +158,9 @@ ACCOUNT_LOGOUT_ON_GET = True
 
 SOCIALACCOUNT_PROVIDERS = {
     'github': {
-        'APP': {
-            'client_id': os.environ.get('GITHUB_OAUTH_CLIENT_ID', ''),
-            'secret': os.environ.get('GITHUB_OAUTH_SECRET', ''),
-        },
         'SCOPE': ['read:user', 'user:email'],
     },
     'google': {
-        'APP': {
-            'client_id': os.environ.get('GOOGLE_OAUTH_CLIENT_ID', ''),
-            'secret': os.environ.get('GOOGLE_OAUTH_SECRET', ''),
-        },
         'SCOPE': ['profile', 'email'],
         'AUTH_PARAMS': {'access_type': 'online'},
     },
