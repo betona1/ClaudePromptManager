@@ -51,10 +51,11 @@ def create_profile_on_signup(sender, request, user, **kwargs):
         }
     )
 
-    # First user ever = admin, claims all existing unowned projects
+    # First user ever = admin + approved, claims all existing unowned projects
     if created and UserProfile.objects.count() == 1:
         profile.is_admin = True
-        profile.save(update_fields=['is_admin'])
+        profile.is_approved = True
+        profile.save(update_fields=['is_admin', 'is_approved'])
         Project.objects.filter(owner__isnull=True).update(owner=user)
 
 

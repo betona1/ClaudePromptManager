@@ -90,6 +90,97 @@
     {% endif %}
 </div>
 
+{% if profile.is_admin %}
+<!-- Admin: User Management -->
+<div class="settings-section">
+    <h3 style="color:#dc2626;">Admin: User Management</h3>
+
+    {% if pending_users %}
+    <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;margin-bottom:16px;">
+        <p style="font-size:13px;font-weight:600;color:#92400e;margin:0 0 8px 0;">
+            승인 대기중 ({{ pending_users.count }}명)
+        </p>
+        {% for up in pending_users %}
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;{% if not forloop.last %}border-bottom:1px solid #fde68a;{% endif %}">
+            <div style="display:flex;align-items:center;gap:10px;">
+                {% if up.avatar_url %}
+                <img src="{{ up.avatar_url }}" style="width:32px;height:32px;border-radius:50%;" alt="">
+                {% else %}
+                <div style="width:32px;height:32px;border-radius:50%;background:#e5e7eb;display:flex;align-items:center;justify-content:center;font-size:14px;color:#6b7280;">{{ up.user.username|first }}</div>
+                {% endif %}
+                <div>
+                    <div style="font-size:13px;font-weight:600;">{{ up.user.username }}</div>
+                    <div style="font-size:11px;color:#6b7280;">{{ up.user.email|default:"(no email)" }} &middot; {{ up.created_at|date:"Y-m-d H:i" }}</div>
+                </div>
+            </div>
+            <div style="display:flex;gap:6px;">
+                <form method="POST" style="display:inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="approve_user">
+                    <input type="hidden" name="user_id" value="{{ up.id }}">
+                    <button type="submit" style="background:#22c55e;color:#fff;border:none;border-radius:6px;padding:4px 14px;font-size:12px;font-weight:600;cursor:pointer;">Approve</button>
+                </form>
+                <form method="POST" style="display:inline;" onsubmit="return confirm('이 사용자를 삭제하시겠습니까?')">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="reject_user">
+                    <input type="hidden" name="user_id" value="{{ up.id }}">
+                    <button type="submit" style="background:#ef4444;color:#fff;border:none;border-radius:6px;padding:4px 14px;font-size:12px;font-weight:600;cursor:pointer;">Reject</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if all_users %}
+    <p style="font-size:13px;font-weight:600;margin-bottom:8px;">전체 사용자 ({{ all_users.count }}명)</p>
+    <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+                <tr style="background:#f9fafb;">
+                    <th style="padding:8px 12px;text-align:left;font-weight:600;">User</th>
+                    <th style="padding:8px 12px;text-align:left;font-weight:600;">Email</th>
+                    <th style="padding:8px 12px;text-align:center;font-weight:600;">Status</th>
+                    <th style="padding:8px 12px;text-align:center;font-weight:600;">Role</th>
+                    <th style="padding:8px 12px;text-align:left;font-weight:600;">Joined</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for up in all_users %}
+                <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:8px 12px;">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            {% if up.avatar_url %}
+                            <img src="{{ up.avatar_url }}" style="width:24px;height:24px;border-radius:50%;" alt="">
+                            {% endif %}
+                            <span style="font-weight:500;">{{ up.user.username }}</span>
+                        </div>
+                    </td>
+                    <td style="padding:8px 12px;color:#6b7280;">{{ up.user.email|default:"-" }}</td>
+                    <td style="padding:8px 12px;text-align:center;">
+                        {% if up.is_approved %}
+                        <span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">Approved</span>
+                        {% else %}
+                        <span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">Pending</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding:8px 12px;text-align:center;">
+                        {% if up.is_admin %}
+                        <span style="background:#ede9fe;color:#6d28d9;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">Admin</span>
+                        {% else %}
+                        <span style="font-size:11px;color:#9ca3af;">User</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding:8px 12px;color:#6b7280;font-size:12px;">{{ up.created_at|date:"Y-m-d" }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
 <!-- Visibility -->
 <div class="settings-section">
     <h3>Project Visibility</h3>

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}승인 대기중 — CPM{% endblock %}
+
+{% block content %}
+<div style="max-width:480px; margin:80px auto; text-align:center;">
+  <div class="card" style="padding:40px;">
+    <div style="font-size:48px; margin-bottom:16px;">&#9203;</div>
+    <h2 style="font-size:22px; margin-bottom:12px;">승인 대기중</h2>
+    <p style="font-size:14px; color:#6b7280; line-height:1.6; margin-bottom:24px;">
+      관리자가 회원가입을 승인한 후에 CPM을 사용할 수 있습니다.<br>
+      잠시만 기다려 주세요.
+    </p>
+    <div style="background:#f3f4f6; border-radius:8px; padding:16px; margin-bottom:20px;">
+      <p style="font-size:13px; color:#374151; margin:0;">
+        <strong>{{ profile.user.username }}</strong>
+        {% if profile.user.email %}<br><span style="color:#6b7280;">{{ profile.user.email }}</span>{% endif %}
+      </p>
+    </div>
+    <a href="{% url 'account_logout' %}" style="display:inline-block; padding:8px 24px; background:#ef4444; color:#fff; border-radius:6px; font-size:14px; font-weight:600; text-decoration:none;">
+      Logout
+    </a>
+  </div>
+</div>
+{% endblock %}

@@ -46,6 +46,14 @@ def dashboard(request):
     if not user.is_authenticated:
         return redirect('account_login')
 
+    # Check approval status
+    try:
+        profile = user.profile
+        if not profile.is_approved:
+            return render(request, 'pending_approval.html', {'profile': profile})
+    except UserProfile.DoesNotExist:
+        pass
+
     tab = 'mine'
 
     projects_qs = Project.objects.filter(owner=user)
@@ -1029,11 +1037,9 @@ def unfollow_user(request, username):
 
 
 def user_settings(request):
-    """User settings page (API token, bio, Google Sheets)."""
-    from django.shortcuts import redirect
-    from django.http import JsonResponse
+    """User settings page (API token, bio, Google Sheets, Admin user management)."""
     if not request.user.is_authenticated:
-        return redirect('github_login')
+        return redirect('account_login')
 
     profile = request.user.profile
 
@@ -1056,14 +1062,39 @@ def user_settings(request):
             from core.google_sheets import test_sheet_connection
             result = test_sheet_connection(profile)
             return JsonResponse(result)
+        elif action == 'approve_user' and profile.is_admin:
+            uid = request.POST.get('user_id')
+            try:
+                target = UserProfile.objects.get(id=uid)
+                target.is_approved = True
+                target.save(update_fields=['is_approved', 'updated_at'])
+            except UserProfile.DoesNotExist:
+                pass
+        elif action == 'reject_user' and profile.is_admin:
+            uid = request.POST.get('user_id')
+            try:
+                target = UserProfile.objects.get(id=uid)
+                target.user.delete()  # Cascades to profile
+            except UserProfile.DoesNotExist:
+                pass
         if action != 'test_google_sheets':
             return redirect('user-settings')
 
     from core.google_sheets import is_available as gs_available, get_service_email
+
+    # Admin: list all users for management
+    all_users = None
+    pending_users = None
+    if profile.is_admin:
+        all_users = UserProfile.objects.select_related('user').order_by('-created_at')
+        pending_users = all_users.filter(is_approved=False)
+
     context = {
         'profile': profile,
         'google_sheets_available': gs_available(),
         'google_service_email': get_service_email(),
+        'all_users': all_users,
+        'pending_users': pending_users,
     }
     return render(request, 'user_settings.html', context)
 

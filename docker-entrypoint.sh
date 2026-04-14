@@ -27,6 +27,25 @@ if hosts and hosts != '*':
     Site.objects.filter(id=1).update(domain=domain, name='CPM')
 " 2>/dev/null || true
 
+# Create default admin account if no users exist
+python manage.py shell -c "
+from django.contrib.auth.models import User
+if User.objects.count() == 0:
+    admin = User.objects.create_superuser('admin', '', '1234')
+    from core.models import UserProfile
+    UserProfile.objects.create(
+        user=admin,
+        github_username='admin',
+        is_admin=True,
+        is_approved=True,
+    )
+    print('Default admin account created (admin/1234)')
+else:
+    # Ensure existing admins are approved
+    from core.models import UserProfile
+    UserProfile.objects.filter(is_admin=True, is_approved=False).update(is_approved=True)
+" 2>/dev/null || true
+
 # Start gunicorn
 WORKERS=${GUNICORN_WORKERS:-2}
 THREADS=${GUNICORN_THREADS:-2}
