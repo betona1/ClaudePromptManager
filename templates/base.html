@@ -31,8 +31,8 @@
                 </a>
                 <a href="{% url 'user-settings' %}" class="nav-link-sm">Settings</a>
                 <a href="{% url 'account_logout' %}" class="nav-link-sm">Logout</a>
-                {% elif github_oauth_available %}
-                <a href="{% url 'github_login' %}" class="nav-link-sm btn-login">Login with GitHub</a>
+                {% else %}
+                <a href="{% url 'account_login' %}" class="nav-link-sm btn-login">Login</a>
                 {% endif %}
                 <a href="{% url 'export' %}" class="nav-link-sm">Export</a>
                 <a href="/api/" class="nav-link-sm">API</a>

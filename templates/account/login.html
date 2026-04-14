@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Login — CPM{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:420px; margin:60px auto;">
+  <div class="card" style="padding:32px;">
+    <h2 style="margin-bottom:20px; font-size:22px;">Login</h2>
+
+    {% if form.errors %}
+    <div style="background:#fef2f2; border:1px solid #fca5a5; border-radius:6px; padding:12px; margin-bottom:16px; color:#b91c1c; font-size:13px;">
+      Username 또는 비밀번호가 올바르지 않습니다.
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{% url 'account_login' %}">
+      {% csrf_token %}
+      <div style="margin-bottom:14px;">
+        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:4px;">Username</label>
+        <input type="text" name="login" value="{{ form.login.value|default:'' }}" required
+               style="width:100%; padding:8px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:14px;">
+      </div>
+      <div style="margin-bottom:20px;">
+        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:4px;">Password</label>
+        <input type="password" name="password" required
+               style="width:100%; padding:8px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:14px;">
+      </div>
+      {% if redirect_field_value %}
+      <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}">
+      {% endif %}
+      <button type="submit" style="width:100%; padding:10px; background:#2563eb; color:#fff; border:none; border-radius:6px; font-size:15px; font-weight:600; cursor:pointer;">
+        Login
+      </button>
+    </form>
+
+    <div style="margin-top:16px; text-align:center; font-size:13px; color:#6b7280;">
+      계정이 없으신가요? <a href="{% url 'account_signup' %}" style="color:#2563eb; font-weight:600;">회원가입</a>
+    </div>
+
+    {% if github_oauth_available %}
+    <div style="margin-top:16px; border-top:1px solid #e5e7eb; padding-top:16px; text-align:center;">
+      <a href="{% url 'github_login' %}" style="display:inline-block; padding:8px 20px; background:#24292e; color:#fff; border-radius:6px; font-size:14px; font-weight:600;">
+        Login with GitHub
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

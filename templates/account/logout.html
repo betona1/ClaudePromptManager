@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Logout — CPM{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:420px; margin:60px auto;">
+  <div class="card" style="padding:32px; text-align:center;">
+    <h2 style="margin-bottom:16px; font-size:22px;">Logout</h2>
+    <p style="margin-bottom:20px; color:#6b7280;">정말 로그아웃 하시겠습니까?</p>
+    <form method="POST" action="{% url 'account_logout' %}">
+      {% csrf_token %}
+      <button type="submit" style="padding:10px 32px; background:#ef4444; color:#fff; border:none; border-radius:6px; font-size:15px; font-weight:600; cursor:pointer;">
+        Logout
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}
