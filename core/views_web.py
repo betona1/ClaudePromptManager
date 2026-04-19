@@ -41,22 +41,26 @@ def _attach_working_days(projects):
 
 
 def dashboard(request):
-    """Personal dashboard — login required, shows only my projects."""
+    """Dashboard — guests see public projects, approved users see personal dashboard."""
     user = request.user
-    if not user.is_authenticated:
-        return redirect('account_login')
+    is_guest = not user.is_authenticated
 
-    # Check approval status
-    try:
-        profile = user.profile
-        if not profile.is_approved:
-            return render(request, 'pending_approval.html', {'profile': profile})
-    except UserProfile.DoesNotExist:
-        pass
+    if not is_guest:
+        # Check approval status
+        try:
+            profile = user.profile
+            if not profile.is_approved:
+                return render(request, 'pending_approval.html', {'profile': profile})
+        except UserProfile.DoesNotExist:
+            pass
 
-    tab = 'mine'
-
-    projects_qs = Project.objects.filter(owner=user)
+    if is_guest:
+        # Guest: public projects only
+        projects_qs = Project.objects.filter(visibility='public')
+        tab = 'public'
+    else:
+        projects_qs = Project.objects.filter(owner=user)
+        tab = 'mine'
 
     projects = projects_qs.prefetch_related('screenshots', 'todos').annotate(
         prompt_count=Count('prompts', distinct=True),
@@ -67,42 +71,61 @@ def dashboard(request):
         has_docker=Exists(ServicePort.objects.filter(project=OuterRef('pk'), is_docker=True)),
     ).order_by('-favorited', '-latest_at')
 
-    my_projects = Project.objects.filter(owner=user)
-    my_prompts = Prompt.objects.filter(project__owner=user)
+    if is_guest:
+        # Guest stats: public project counts
+        public_prompts = Prompt.objects.filter(project__visibility='public')
+        total = public_prompts.count()
+        total_days = len(public_prompts.dates('created_at', 'day'))
+        token_agg = projects_qs.aggregate(
+            total_in=Sum('total_input_tokens'),
+            total_out=Sum('total_output_tokens'),
+        )
+        total_tokens = (token_agg['total_in'] or 0) + (token_agg['total_out'] or 0)
 
-    total = my_prompts.count()
+        today = date.today()
+        yesterday = today - timedelta(days=1)
+        week_start = today - timedelta(days=6)
+        month_start = today - timedelta(days=29)
+        today_count = public_prompts.filter(created_at__date=today).count()
+        yesterday_count = public_prompts.filter(created_at__date=yesterday).count()
+        week_count = public_prompts.filter(created_at__date__gte=week_start, created_at__date__lte=today).count()
+        month_count = public_prompts.filter(created_at__date__gte=month_start, created_at__date__lte=today).count()
 
-    recent_prompts = my_prompts.select_related('project').order_by('-created_at')[:15]
+        from django.contrib.auth.models import User
+        member_count = User.objects.filter(profile__is_approved=True).count()
+        total_project_count = Project.objects.count()
 
-    # Calculate total working days (distinct dates across my prompts)
-    total_days = len(my_prompts.dates('created_at', 'day'))
+        recent_prompts = []
+        services = []
+        hooks_health = {'ok': True}
+    else:
+        my_projects = Project.objects.filter(owner=user)
+        my_prompts = Prompt.objects.filter(project__owner=user)
+        total = my_prompts.count()
+        recent_prompts = my_prompts.select_related('project').order_by('-created_at')[:15]
+        total_days = len(my_prompts.dates('created_at', 'day'))
+        token_agg = my_projects.aggregate(
+            total_in=Sum('total_input_tokens'),
+            total_out=Sum('total_output_tokens'),
+        )
+        total_tokens = (token_agg['total_in'] or 0) + (token_agg['total_out'] or 0)
+        services = ServicePort.objects.select_related('project').filter(project__owner=user)
+
+        today = date.today()
+        yesterday = today - timedelta(days=1)
+        week_start = today - timedelta(days=6)
+        month_start = today - timedelta(days=29)
+        today_count = my_prompts.filter(created_at__date=today).count()
+        yesterday_count = my_prompts.filter(created_at__date=yesterday).count()
+        week_count = my_prompts.filter(created_at__date__gte=week_start, created_at__date__lte=today).count()
+        month_count = my_prompts.filter(created_at__date__gte=month_start, created_at__date__lte=today).count()
+
+        import sys
+        sys.path.insert(0, str(settings.CPM_HOOKS_DIR))
+        from shared import check_hooks_health
+        hooks_health = check_hooks_health()
 
     _attach_working_days(projects)
-
-    # Total tokens (my projects)
-    token_agg = my_projects.aggregate(
-        total_in=Sum('total_input_tokens'),
-        total_out=Sum('total_output_tokens'),
-    )
-    total_tokens = (token_agg['total_in'] or 0) + (token_agg['total_out'] or 0)
-
-    services = ServicePort.objects.select_related('project').filter(project__owner=user)
-
-    # Period prompt counts (my prompts only)
-    today = date.today()
-    yesterday = today - timedelta(days=1)
-    week_start = today - timedelta(days=6)
-    month_start = today - timedelta(days=29)
-    today_count = my_prompts.filter(created_at__date=today).count()
-    yesterday_count = my_prompts.filter(created_at__date=yesterday).count()
-    week_count = my_prompts.filter(created_at__date__gte=week_start, created_at__date__lte=today).count()
-    month_count = my_prompts.filter(created_at__date__gte=month_start, created_at__date__lte=today).count()
-
-    # Hook health check
-    import sys
-    sys.path.insert(0, str(settings.CPM_HOOKS_DIR))
-    from shared import check_hooks_health
-    hooks_health = check_hooks_health()
 
     context = {
         'projects': projects,
@@ -115,13 +138,17 @@ def dashboard(request):
         'yesterday_count': yesterday_count,
         'week_count': week_count,
         'month_count': month_count,
-        'hook_count': my_prompts.filter(source='hook').count(),
-        'import_count': my_prompts.filter(source='import').count(),
+        'hook_count': 0 if is_guest else Prompt.objects.filter(project__owner=user, source='hook').count(),
+        'import_count': 0 if is_guest else Prompt.objects.filter(project__owner=user, source='import').count(),
         'services': services,
         'hooks_ok': hooks_health['ok'],
         'hooks_health': hooks_health,
         'tab': tab,
+        'is_guest': is_guest,
     }
+    if is_guest:
+        context['member_count'] = member_count
+        context['total_project_count'] = total_project_count
     return render(request, 'dashboard.html', context)
 
 
@@ -1062,6 +1089,34 @@ def user_settings(request):
             from core.google_sheets import test_sheet_connection
             result = test_sheet_connection(profile)
             return JsonResponse(result)
+        elif action == 'sync_google_sheets':
+            import threading
+            days = int(request.POST.get('days', 30))
+            def _do_sync(profile_id, days):
+                try:
+                    from core.models import UserProfile, Prompt
+                    from core.google_sheets import append_prompt_to_sheet
+                    from datetime import date, timedelta
+                    prof = UserProfile.objects.get(id=profile_id)
+                    qs = Prompt.objects.filter(project__owner=prof.user).select_related('project').order_by('created_at')
+                    if days > 0:
+                        since = date.today() - timedelta(days=days)
+                        qs = qs.filter(created_at__date__gte=since)
+                    for prompt in qs:
+                        try:
+                            append_prompt_to_sheet(prof, prompt)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+            count = Prompt.objects.filter(project__owner=request.user).count()
+            if days > 0:
+                from datetime import timedelta
+                since = date.today() - timedelta(days=days)
+                count = Prompt.objects.filter(project__owner=request.user, created_at__date__gte=since).count()
+            t = threading.Thread(target=_do_sync, args=(profile.id, days), daemon=True)
+            t.start()
+            return JsonResponse({'ok': True, 'message': f'{count}개 프롬프트 동기화 시작! 백그라운드에서 진행됩니다.'})
         elif action == 'approve_user' and profile.is_admin:
             uid = request.POST.get('user_id')
             try:
@@ -1070,6 +1125,20 @@ def user_settings(request):
                 target.save(update_fields=['is_approved', 'updated_at'])
             except UserProfile.DoesNotExist:
                 pass
+        elif action == 'pre_approve_email' and profile.is_admin:
+            from core.models import PreApprovedEmail
+            emails_raw = request.POST.get('emails', '')
+            added = 0
+            for line in emails_raw.replace(',', '\n').split('\n'):
+                email = line.strip().lower()
+                if email and '@' in email:
+                    _, created_flag = PreApprovedEmail.objects.get_or_create(email=email)
+                    if created_flag:
+                        added += 1
+        elif action == 'remove_pre_approved' and profile.is_admin:
+            from core.models import PreApprovedEmail
+            email_id = request.POST.get('email_id')
+            PreApprovedEmail.objects.filter(id=email_id).delete()
         elif action == 'reject_user' and profile.is_admin:
             uid = request.POST.get('user_id')
             try:
@@ -1085,9 +1154,12 @@ def user_settings(request):
     # Admin: list all users for management
     all_users = None
     pending_users = None
+    pre_approved_emails = None
     if profile.is_admin:
+        from core.models import PreApprovedEmail
         all_users = UserProfile.objects.select_related('user').order_by('-created_at')
         pending_users = all_users.filter(is_approved=False)
+        pre_approved_emails = PreApprovedEmail.objects.order_by('-created_at')
 
     context = {
         'profile': profile,
@@ -1095,6 +1167,7 @@ def user_settings(request):
         'google_service_email': get_service_email(),
         'all_users': all_users,
         'pending_users': pending_users,
+        'pre_approved_emails': pre_approved_emails,
     }
     return render(request, 'user_settings.html', context)
 

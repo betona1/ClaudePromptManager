@@ -403,6 +403,17 @@ class UserProfile(models.Model):
         return self.api_token
 
 
+class PreApprovedEmail(models.Model):
+    email = models.EmailField(unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'pre_approved_emails'
+
+    def __str__(self):
+        return self.email
+
+
 class Follow(models.Model):
     follower = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='following_set'

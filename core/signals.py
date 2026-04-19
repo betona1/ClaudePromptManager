@@ -57,6 +57,13 @@ def create_profile_on_signup(sender, request, user, **kwargs):
         profile.is_approved = True
         profile.save(update_fields=['is_admin', 'is_approved'])
         Project.objects.filter(owner__isnull=True).update(owner=user)
+    elif created and user.email:
+        # Auto-approve if email is pre-approved
+        from core.models import PreApprovedEmail
+        if PreApprovedEmail.objects.filter(email__iexact=user.email).exists():
+            profile.is_approved = True
+            profile.save(update_fields=['is_approved'])
+            PreApprovedEmail.objects.filter(email__iexact=user.email).delete()
 
 
 # ── Federation push sync ──

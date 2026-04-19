@@ -6,6 +6,498 @@
     <h1 class="setup-title">Setup</h1>
     <p class="setup-desc">GitHub 연동, Telegram 봇, 원격 PC 설정</p>
 
+    <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+    <!-- 바이브사관학교 매뉴얼                             -->
+    <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+    <style>
+        .manual-section { margin-bottom: 24px; }
+        .manual-accordion { border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; margin-bottom: 12px; background: #fff; }
+        .manual-accordion-header { display: flex; align-items: center; gap: 12px; padding: 16px 20px; cursor: pointer; user-select: none; transition: background .15s; }
+        .manual-accordion-header:hover { background: #f8fafc; }
+        .manual-accordion-header .manual-icon { font-size: 22px; flex-shrink: 0; }
+        .manual-accordion-header .manual-title-wrap { flex: 1; }
+        .manual-accordion-header h3 { margin: 0; font-size: 16px; font-weight: 700; color: #1e293b; }
+        .manual-accordion-header .manual-sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+        .manual-chevron { font-size: 14px; color: #94a3b8; transition: transform .2s; flex-shrink: 0; }
+        .manual-accordion.open .manual-chevron { transform: rotate(180deg); }
+        .manual-accordion-body { display: none; padding: 0 20px 24px; }
+        .manual-accordion.open .manual-accordion-body { display: block; }
+
+        .manual-step-banner { background: linear-gradient(135deg, #1e40af, #3b82f6); color: #fff; padding: 10px 16px; border-radius: 8px; font-weight: 700; font-size: 15px; margin: 20px 0 12px; }
+        .manual-step-banner:first-child { margin-top: 0; }
+
+        .manual-cmd-table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; font-size: 13px; }
+        .manual-cmd-table td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; }
+        .manual-cmd-table td:first-child { font-family: 'JetBrains Mono', 'Fira Code', monospace; background: #f8fafc; color: #1e40af; white-space: nowrap; width: 40%; border-right: 1px solid #e2e8f0; font-size: 12px; }
+        .manual-cmd-table td:last-child { color: #475569; }
+        .manual-cmd-table tr:last-child td { border-bottom: none; }
+
+        .manual-term-table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; font-size: 13px; }
+        .manual-term-table th { background: #f1f5f9; padding: 8px 12px; text-align: left; font-weight: 600; color: #334155; border-bottom: 2px solid #cbd5e1; font-size: 12px; }
+        .manual-term-table td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; color: #475569; vertical-align: top; }
+        .manual-term-table td:first-child { font-weight: 600; color: #1e293b; white-space: nowrap; }
+        .manual-term-table tr:hover td { background: #f8fafc; }
+        .manual-term-table tr:last-child td { border-bottom: none; }
+
+        .manual-prompt-box { background: linear-gradient(135deg, #f0fdf4, #ecfdf5); border: 1px solid #86efac; border-left: 4px solid #22c55e; border-radius: 8px; padding: 14px 16px; margin: 10px 0 16px; font-size: 13px; color: #166534; line-height: 1.7; font-family: 'JetBrains Mono', 'Fira Code', monospace; white-space: pre-wrap; }
+        .manual-prompt-label { font-size: 11px; font-weight: 700; color: #15803d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; font-family: -apple-system, sans-serif; }
+
+        .manual-note { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; padding: 10px 14px; margin: 10px 0; font-size: 13px; color: #92400e; }
+        .manual-note-blue { background: #eff6ff; border-color: #93c5fd; color: #1e40af; }
+        .manual-note strong { font-weight: 700; }
+
+        .manual-info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin: 10px 0; text-align: center; font-size: 14px; color: #475569; }
+
+        .manual-compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 10px 0 16px; }
+        .manual-compare-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; font-size: 13px; }
+        .manual-compare-card h4 { margin: 0 0 8px; font-size: 14px; }
+        .manual-compare-card.recommend { border-color: #86efac; background: #f0fdf4; }
+        .manual-compare-card.alt { background: #f8fafc; }
+        .manual-compare-card ul { margin: 6px 0; padding-left: 18px; }
+        .manual-compare-card li { margin: 3px 0; color: #475569; line-height: 1.5; }
+        @media (max-width: 640px) { .manual-compare-grid { grid-template-columns: 1fr; } }
+
+        .manual-case-box { border: 1px solid #c7d2fe; border-radius: 8px; margin: 12px 0; overflow: hidden; }
+        .manual-case-header { background: linear-gradient(135deg, #eef2ff, #e0e7ff); padding: 10px 14px; font-weight: 700; font-size: 14px; color: #3730a3; }
+        .manual-case-body { padding: 14px; }
+        .manual-case-body .manual-prompt-box { margin: 8px 0 0; }
+
+        .manual-p { font-size: 13px; color: #475569; line-height: 1.7; margin: 8px 0; }
+        .manual-p strong { color: #1e293b; }
+
+        .manual-roadmap { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+        .manual-roadmap-item { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: #475569; }
+        .manual-roadmap-dot { width: 24px; height: 24px; border-radius: 50%; background: #3b82f6; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+
+        .manual-conclusion-box { background: linear-gradient(135deg, #faf5ff, #f3e8ff); border: 1px solid #c084fc; border-radius: 8px; padding: 14px 16px; margin: 12px 0; }
+        .manual-conclusion-box p { font-size: 13px; color: #6b21a8; margin: 4px 0; line-height: 1.6; }
+    </style>
+
+    <div class="setup-section manual-section" id="manual-section">
+        <h2 style="margin-bottom: 4px;">바이브사관학교 매뉴얼</h2>
+        <p class="text-sm text-light" style="margin-bottom: 16px;">실습에 필요한 매뉴얼입니다. 클릭하면 펼쳐집니다.</p>
+
+        <!-- ── 매뉴얼 1: 2주차 실습 ── -->
+        <div class="manual-accordion" id="manual-1">
+            <div class="manual-accordion-header" onclick="toggleManual('manual-1')">
+                <span class="manual-icon">&#128218;</span>
+                <div class="manual-title-wrap">
+                    <h3>2주차 실습 매뉴얼</h3>
+                    <div class="manual-sub">SSH 접속, tmux, CLAUDE.md, 첫 프로젝트 시작</div>
+                </div>
+                <span class="manual-chevron">&#9660;</span>
+            </div>
+            <div class="manual-accordion-body">
+
+                <div class="manual-info-box">
+                    <strong>WiFi</strong> : joacham &nbsp;&nbsp;&nbsp; <strong>비밀번호</strong> : 01027533200
+                </div>
+
+                <div class="manual-step-banner">&#9632; 오늘의 목표</div>
+                <div class="manual-p">
+                    1. tmux 로 터미널 안 꺼지게 (집에서도 다른 PC에서도)<br>
+                    2. Claude Code 여러 개 동시에<br>
+                    3. 내 쇼핑몰 첫 프로젝트 시작
+                </div>
+
+                <div class="manual-step-banner">&#9632; STEP 1. 리눅스 접속 &amp; 프로젝트 폴더</div>
+                <table class="manual-cmd-table">
+                    <tr><td>ssh id@내서버주소</td><td>서버 접속</td></tr>
+                    <tr><td>mkdir ~/my-shop</td><td>프로젝트 폴더 만들기</td></tr>
+                    <tr><td>cd ~/my-shop</td><td>폴더 안으로 들어가기</td></tr>
+                </table>
+
+                <div class="manual-step-banner">&#9632; STEP 2. tmux 세션 만들기 (터미널 저장!)</div>
+                <table class="manual-cmd-table">
+                    <tr><td>tmux new -s shop</td><td>세션 만들기 (이름: shop)</td></tr>
+                    <tr><td>tmux ls</td><td>켜진 세션 목록 보기</td></tr>
+                    <tr><td>tmux attach -t shop</td><td>다시 들어가기</td></tr>
+                    <tr><td>tmux a -t shop</td><td>&uarr; 줄임말 (같은 명령)</td></tr>
+                </table>
+
+                <div class="manual-p"><strong>&#9654; tmux 단축키</strong> (Ctrl+b 먼저 누르고 손 뗀 뒤!)</div>
+                <table class="manual-cmd-table">
+                    <tr><td>Ctrl+b &rarr; d</td><td>나가기 (작업은 계속 실행됨)</td></tr>
+                    <tr><td>Ctrl+b &rarr; %</td><td>좌우로 화면 나누기</td></tr>
+                    <tr><td>Ctrl+b &rarr; "</td><td>위아래로 화면 나누기</td></tr>
+                    <tr><td>Ctrl+b &rarr; 화살표</td><td>나눈 화면 사이 이동</td></tr>
+                </table>
+
+                <div class="manual-step-banner">&#9632; STEP 3. Claude Desktop 에서 CLAUDE.md 받기</div>
+                <div class="manual-p">&CirclePlus; Claude Desktop 에 아래 프롬프트 복사 &rarr;</div>
+                <div class="manual-prompt-box">
+                    <div class="manual-prompt-label">Claude Desktop 프롬프트</div>나는 [내 업종] 쇼핑몰 사장이야.
+[만들고 싶은 기능] 을 만들고 싶어.
+Linux 서버에서 Claude Code 로 개발할거야.
+&#9654; CLAUDE.md 파일을 코드블록으로 만들어줘.</div>
+                <div class="manual-p">&CirclePlus; 결과물 전체 복사 (Ctrl + C)</div>
+
+                <div class="manual-step-banner">&#9632; STEP 4. 서버에 CLAUDE.md 붙여넣기</div>
+                <table class="manual-cmd-table">
+                    <tr><td>nano CLAUDE.md</td><td>파일 편집기 열기</td></tr>
+                </table>
+                <div class="manual-note">
+                    &CirclePlus; 마우스 우클릭 &rarr; 붙여넣기<br>
+                    &CirclePlus; 저장 : <strong>Ctrl+O &rarr; Enter</strong><br>
+                    &CirclePlus; 종료 : <strong>Ctrl+X</strong>
+                </div>
+
+                <div class="manual-step-banner">&#9632; STEP 5. Claude Code 실행 !</div>
+                <table class="manual-cmd-table">
+                    <tr><td>claude</td><td>Claude Code 시작 (처음엔 그냥, 나중엔 tmux 로)</td></tr>
+                </table>
+                <div class="manual-p"><strong>&#9654; 첫 마디로 이렇게 :</strong></div>
+                <div class="manual-prompt-box">
+                    <div class="manual-prompt-label">Claude Code 첫 프롬프트</div>CLAUDE.md 읽고 이 프로젝트 시작하자 !</div>
+
+                <div class="manual-step-banner">&#9632; 막혔을 때</div>
+                <div class="manual-p"><strong>&#9654; Claude Desktop 및 다른 AI 에게 물어보기</strong></div>
+                <div class="manual-note manual-note-blue">
+                    막히면 Claude Desktop 에 에러 메시지를 복사해서 물어보세요.<br>
+                    다른 AI (GPT, Gemini 등) 도 활용 가능합니다!
+                </div>
+            </div>
+        </div>
+
+        <!-- ── 매뉴얼 2: 용어정리 ── -->
+        <div class="manual-accordion" id="manual-2">
+            <div class="manual-accordion-header" onclick="toggleManual('manual-2')">
+                <span class="manual-icon">&#128214;</span>
+                <div class="manual-title-wrap">
+                    <h3>꼭 알아두면 좋은 용어</h3>
+                    <div class="manual-sub">DB, 크롤링, 개발, AI 모델 용어 정리</div>
+                </div>
+                <span class="manual-chevron">&#9660;</span>
+            </div>
+            <div class="manual-accordion-body">
+
+                <div class="manual-note manual-note-blue">
+                    &#8251; 몰라도 됨 ! Claude 에게 "이거 뭐야 ?" 라고 물어보면 됨
+                </div>
+
+                <div class="manual-step-banner">&#9632; DB (데이터베이스) 용어 &mdash; 쇼핑몰 = 엑셀 여러 장 묶음</div>
+                <table class="manual-term-table">
+                    <tr><td>테이블 (Table)</td><td>엑셀 시트 한 장 (회원시트, 상품시트, 주문시트)</td></tr>
+                    <tr><td>컬럼 / 로우</td><td>컬럼 = 세로줄 (이름, 가격) / 로우 = 가로줄 (고객 한 명)</td></tr>
+                    <tr><td>기본키 (PK)</td><td>회원번호, 주문번호 &mdash; 절대 안 겹치는 번호표</td></tr>
+                    <tr><td>외래키 (FK)</td><td>"이 주문은 3번 회원 것" 연결고리</td></tr>
+                    <tr><td>ERD</td><td>시트들이 서로 어떻게 연결됐는지 그린 지도</td></tr>
+                    <tr><td>SQL / 쿼리</td><td>"어제 10만원 넘는 주문만 보여줘" 질문 문장</td></tr>
+                    <tr><td>인덱스</td><td>엑셀의 정렬 / 필터 &mdash; 검색 빨리 해주는 장치</td></tr>
+                    <tr><td>트랜잭션</td><td>"결제+재고차감" 한 덩어리 (하나 실패 = 다 취소)</td></tr>
+                    <tr><td>백업 / 마이그레이션</td><td>백업=복사본 보관 / 마이그레이션=구조 변경 시 데이터 안전 이동</td></tr>
+                </table>
+
+                <div class="manual-step-banner">&#9632; 시스템 구조 &amp; 웹 기술 용어</div>
+                <table class="manual-term-table">
+                    <tr><td>프론트엔드 / 백엔드</td><td>프론트=손님이 보는 화면 / 백엔드=뒤에서 처리하는 사무실</td></tr>
+                    <tr><td>서버 / 클라이언트</td><td>서버=사무실 건물 / 클라이언트=손님 폰 &middot; PC</td></tr>
+                    <tr><td>API</td><td>프론트와 백엔드 사이 주문 접수창구</td></tr>
+                    <tr><td>HTTP / HTTPS</td><td>주고받는 편지 규칙 (S = 자물쇠 달린 편지)</td></tr>
+                    <tr><td>JSON</td><td>정보 주고받을 때 쓰는 포장 방식</td></tr>
+                    <tr><td>토큰 인증</td><td>로그인 후 받는 "출입증" &mdash; 서버에 요청할 때마다 제시</td></tr>
+                    <tr><td>API 키 인증</td><td>프로그램끼리 통신할 때 쓰는 "비밀번호" (절대 유출 X)</td></tr>
+                    <tr><td>배포 (Deploy)</td><td>완성된 가게를 인터넷에 오픈하는 것</td></tr>
+                    <tr><td>캐시 / CDN</td><td>자주 보는 것 미리 꺼내놓기 / CDN=전국 지점에 복사본</td></tr>
+                    <tr><td>도메인 / DNS</td><td>도메인=가게 주소 (naver.com) / DNS=주소록</td></tr>
+                    <tr><td>쿠키 / 세션</td><td>쿠키=손님 브라우저에 저장 / 세션=서버에 저장한 손님 기록</td></tr>
+                    <tr><td>SSL 인증서</td><td>HTTPS 자물쇠 열쇠 &mdash; 통신 암호화</td></tr>
+                </table>
+
+                <div class="manual-step-banner">&#9632; 크롤링 / 스크래핑 용어 (경쟁사 가격 자동 수집 등)</div>
+                <table class="manual-term-table">
+                    <tr><td>크롤링 / 스크래핑</td><td>웹사이트 정보 자동 수집 (크롤링=돌아다님 / 스크래핑=긁어옴)</td></tr>
+                    <tr><td>HTML 파싱</td><td>웹페이지 코드에서 원하는 정보만 골라내기</td></tr>
+                    <tr><td>User-Agent</td><td>"나는 크롬 브라우저야" 라고 밝히는 신분증</td></tr>
+                    <tr><td>robots.txt</td><td>사이트 주인이 "여긴 크롤링 하지마" 써놓은 안내문 (지키기!)</td></tr>
+                    <tr><td>셀레니움 / 플레이라이트</td><td>진짜 브라우저로 열어서 긁는 도구 (JS 많은 사이트용)</td></tr>
+                    <tr><td>Requests / BS4</td><td>간단한 웹페이지 긁을 때 쓰는 파이썬 도구</td></tr>
+                    <tr><td>Rate Limit</td><td>"너무 빨리 요청하지 마" 서버가 막는 것 &rarr; 천천히 해야 함</td></tr>
+                    <tr><td>프록시 / VPN</td><td>내 IP 숨기고 다른 IP로 우회 &mdash; 차단 우회용</td></tr>
+                    <tr><td>CAPTCHA</td><td>"나 로봇 아님" 체크 &mdash; 크롤링 막는 장애물</td></tr>
+                    <tr><td>스케줄링 (cron)</td><td>"매일 새벽 3시에 자동 실행" 같은 예약 기능</td></tr>
+                    <tr><td>헤드리스 브라우저</td><td>화면 없이 뒤에서만 돌아가는 크롬 (서버에서 사용)</td></tr>
+                </table>
+
+                <div class="manual-step-banner">&#9632; 개발하면서 자주 듣는 용어</div>
+                <table class="manual-term-table">
+                    <tr><td>Git / 커밋</td><td>작업 내용 저장 (Ctrl+S 같은 것)</td></tr>
+                    <tr><td>깃헙 (GitHub)</td><td>내 코드 올려놓는 인터넷 창고</td></tr>
+                    <tr><td>.env 파일</td><td>비밀번호 / API 키 숨겨놓는 금고 (절대 깃헙에 올리지 말 것!)</td></tr>
+                    <tr><td>버그 / 에러 / 로그</td><td>에러=오류 / 로그=서버 일기장 &rarr; 복사해서 Claude 에 물어보기</td></tr>
+                    <tr><td>프레임워크 / 라이브러리</td><td>프레임워크=집 골조 (Django) / 라이브러리=부품 모음</td></tr>
+                    <tr><td>패키지 / 의존성</td><td>필요한 도구들 묶음 / 이것들이 서로 필요한 관계</td></tr>
+                    <tr><td>Docker / 컨테이너</td><td>내 프로그램 + 환경을 통째로 포장해서 어디서든 똑같이 실행</td></tr>
+                </table>
+
+                <div class="manual-step-banner">&#9632; 주요 AI 모델 &mdash; 좋은 것부터 저렴한 것까지</div>
+                <table class="manual-term-table">
+                    <tr>
+                        <th>모델명</th>
+                        <th>가격 (입력/출력)</th>
+                        <th>특징 / 언제 쓰나</th>
+                    </tr>
+                    <tr><td>Claude Opus 4.6</td><td>$5 / $25</td><td>최상급 추론 &middot; 복잡한 코딩 (비쌈)</td></tr>
+                    <tr><td style="color:#2563eb;font-weight:700;">Claude Sonnet 4.6</td><td>$3 / $15</td><td style="color:#2563eb;">&#9733; 가성비 최고 &middot; 바이브코딩 추천 &#9733;</td></tr>
+                    <tr><td>Claude Haiku 4.5</td><td>$0.25 / $1.25</td><td>빠르고 저렴 &middot; 간단 작업</td></tr>
+                    <tr><td>GPT-5.4</td><td>$2.5 / $15</td><td>OpenAI 주력 &middot; 균형 잡힌 성능</td></tr>
+                    <tr><td>GPT-5 mini</td><td>$0.25 / $2</td><td>저렴한 OpenAI 옵션</td></tr>
+                    <tr><td>Gemini 3.1 Pro</td><td>$2 / $12</td><td>구글 최상급 &middot; 긴 문서에 강함</td></tr>
+                    <tr><td>Gemini 3 Flash</td><td>$0.5 / $3</td><td>구글 저렴 &middot; 무료 체험 많음</td></tr>
+                    <tr><td>DeepSeek V3.2</td><td>$0.28 / $0.42</td><td>중국산 초저가 &middot; 가격 파괴자</td></tr>
+                </table>
+                <div class="manual-note">
+                    &#8251; 가격 단위 : 100만 토큰당 달러 (입력 / 출력) &middot; 1 토큰 &asymp; 한글 0.5~1자<br>
+                    &#8251; Claude Code 는 Pro 구독 (월 $20) 으로 사용 &mdash; 토큰 요금 별도 X
+                </div>
+
+                <div class="manual-step-banner">&#9632; API 키 방식 vs 로컬 구축 방식</div>
+                <div class="manual-compare-grid">
+                    <div class="manual-compare-card recommend">
+                        <h4 style="color:#16a34a;">&#9654; API 키 방식 (추천)</h4>
+                        <div class="manual-p">OpenAI, Anthropic 등에 돈 내고 API 키 받아서 인터넷으로 호출</div>
+                        <ul>
+                            <li><strong>장점:</strong> 최신 &middot; 최고 성능, 설치 &middot; 관리 불필요, 쓴 만큼만 지불</li>
+                            <li><strong>단점:</strong> 데이터 외부 전송, 많이 쓰면 요금 폭탄</li>
+                        </ul>
+                    </div>
+                    <div class="manual-compare-card alt">
+                        <h4 style="color:#475569;">&#9654; 로컬 구축 방식</h4>
+                        <div class="manual-p">내 서버에 오픈소스 AI (Llama, Qwen 등) 직접 설치해서 돌리기</div>
+                        <ul>
+                            <li><strong>장점:</strong> 데이터 외부 안 나감, 월 고정비, 무제한 사용</li>
+                            <li><strong>단점:</strong> GPU 서버 비쌈 (월 50만원&uarr;), 설치 &middot; 관리 직접</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="manual-conclusion-box">
+                    <div class="manual-p"><strong>&#9654; 결론 &mdash; 쇼핑몰 사장님은 어떻게?</strong></div>
+                    <p>&#9678; 시작은 무조건 API 방식! (Claude Pro 월 $20 부터)</p>
+                    <p>&#9678; 민감한 고객 데이터 다루면 &rarr; 나중에 로컬 구축 고려</p>
+                    <p>&#9678; 외우지 마세요! 모르면 Claude 에게 "이거 뭐야?" 하면 끝!</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── 매뉴얼 3: 크롤링 전문편 ── -->
+        <div class="manual-accordion" id="manual-3">
+            <div class="manual-accordion-header" onclick="toggleManual('manual-3')">
+                <span class="manual-icon">&#128375;</span>
+                <div class="manual-title-wrap">
+                    <h3>크롤링 전문편</h3>
+                    <div class="manual-sub">경쟁사 이기는 쇼핑몰 사장님의 데이터 무기</div>
+                </div>
+                <span class="manual-chevron">&#9660;</span>
+            </div>
+            <div class="manual-accordion-body">
+
+                <div class="manual-note manual-note-blue">
+                    &#8251; 몰라도 됨 ! Claude 에게 "이거 뭐야?" 또는 "이렇게 만들어줘" 라고 시키면 됨
+                </div>
+
+                <div class="manual-step-banner">&#9632; STEP 0. 크롤링 이란? (왜 배워야 하나?)</div>
+                <div class="manual-p">&#9678; 크롤링 = 웹사이트에서 정보를 자동으로 수집하는 기술</div>
+                <div class="manual-p">&#9678; 쇼핑몰 사장님이 크롤링으로 할 수 있는 것들 :</div>
+                <table class="manual-term-table">
+                    <tr><td>경쟁사 가격 자동 감시</td><td>매일 새벽에 경쟁사 10곳 가격을 엑셀로 정리 &rarr; 내 가격 전략</td></tr>
+                    <tr><td>트렌드 상품 자동 발굴</td><td>쿠팡 &middot; 네이버쇼핑 베스트셀러 매일 추적 &rarr; 신상품 아이디어</td></tr>
+                    <tr><td>리뷰 자동 수집 분석</td><td>내 상품 + 경쟁사 리뷰 모아 AI 에게 분석 요청 &rarr; 개선점</td></tr>
+                    <tr><td>공급처 재고 자동 확인</td><td>도매처 재고 &middot; 가격 주기적으로 확인 &rarr; 품절 전 발주</td></tr>
+                    <tr><td>키워드 &middot; 해시태그 추적</td><td>인스타 &middot; 블로그 인기 키워드 수집 &rarr; SEO &middot; 광고 전략</td></tr>
+                    <tr><td>이미지 &middot; 상세페이지 수집</td><td>경쟁사 상세페이지 구성 분석 &rarr; 디자인 벤치마킹</td></tr>
+                </table>
+
+                <div class="manual-step-banner">&#9632; STEP 1. 크롤링 vs 스크래핑 &mdash; 정확히 구분하기</div>
+                <table class="manual-term-table">
+                    <tr><td>크롤링 (Crawling)</td><td>링크를 따라가며 여러 페이지를 돌아다니는 것 (검색엔진 방식)</td></tr>
+                    <tr><td>스크래핑 (Scraping)</td><td>특정 페이지에서 원하는 정보만 긁어오는 것</td></tr>
+                    <tr><td>실무에서는</td><td>대부분 섞어 씀 &rarr; "크롤링" 이라고 통칭</td></tr>
+                </table>
+
+                <div class="manual-step-banner">&#9632; STEP 2. 사이트 종류 파악 &mdash; 내 상대 먼저 알기</div>
+                <table class="manual-term-table">
+                    <tr><td>정적 사이트 (Static)</td><td>서버가 HTML 통째로 주는 사이트 &rarr; 쉬움 (블로그, 뉴스)</td></tr>
+                    <tr><td>동적 사이트 (Dynamic)</td><td>JavaScript 로 내용 채우는 사이트 &rarr; 어려움 (쿠팡, 네이버)</td></tr>
+                    <tr><td>SPA</td><td>한 페이지 안에서 계속 바뀌는 사이트 (React, Vue 사이트)</td></tr>
+                    <tr><td>API 있는 사이트</td><td>숨겨진 API 찾으면 개꿀! (제일 깔끔한 방법)</td></tr>
+                </table>
+
+                <div class="manual-step-banner">&#9632; STEP 3. 크롤링 도구 4대 천왕 &mdash; 언제 뭘 쓸까?</div>
+                <table class="manual-term-table">
+                    <tr><th>도구</th><th>속도</th><th>난이도</th><th>언제 쓰나</th></tr>
+                    <tr><td>Requests + BS4</td><td>&#9733;&#9733;&#9733;&#9733;&#9733;</td><td>쉬움</td><td>정적 사이트 (블로그, 뉴스)</td></tr>
+                    <tr><td>Selenium</td><td>&#9733;&#9733;</td><td>보통</td><td>로그인 필요, 복잡한 조작</td></tr>
+                    <tr><td>Playwright</td><td>&#9733;&#9733;&#9733;&#9733;</td><td>보통</td><td>요즘 사이트 대부분 (쿠팡 등)</td></tr>
+                    <tr><td>Scrapy</td><td>&#9733;&#9733;&#9733;&#9733;&#9733;</td><td>어려움</td><td>수천~수만 페이지 대규모</td></tr>
+                </table>
+                <div class="manual-note">
+                    &#9678; <strong>쇼핑몰 사장님 추천 공식:</strong><br>
+                    1. 일단 Requests + BS4 로 시도 &rarr; 70%는 이걸로 됨<br>
+                    2. 안 되면 Playwright 로 (진짜 브라우저 열어서)<br>
+                    3. Claude 에게 "이 사이트 어떤 도구 써야 해?" 물어보면 답해줌
+                </div>
+
+                <div class="manual-step-banner">&#9632; STEP 4. HTML 구조 이해 &mdash; 크롤링의 심장</div>
+                <table class="manual-term-table">
+                    <tr><td>HTML</td><td>웹페이지의 뼈대 코드 (F12 눌러서 볼 수 있음)</td></tr>
+                    <tr><td>태그 (Tag)</td><td>&lt;div&gt;, &lt;a&gt;, &lt;img&gt; 같은 것 &mdash; 요소의 종류</td></tr>
+                    <tr><td>클래스 (class)</td><td>태그에 붙은 이름표 (class="price")</td></tr>
+                    <tr><td>ID</td><td>태그에 붙은 고유 번호표 (id="product-1")</td></tr>
+                    <tr><td>CSS 선택자</td><td>원하는 요소 콕 집는 법 (.price, #product-1)</td></tr>
+                    <tr><td>XPath</td><td>CSS 선택자보다 정교한 주소 (복잡한 구조용)</td></tr>
+                    <tr><td>DOM</td><td>브라우저가 해석한 HTML 구조 트리</td></tr>
+                    <tr><td>개발자도구 (F12)</td><td>웹페이지 구조 분석하는 필수 도구 &rarr; Claude 에 스샷 붙이기</td></tr>
+                </table>
+
+                <div class="manual-step-banner">&#9632; STEP 5. HTTP 통신 용어 &mdash; 서버와 대화하는 법</div>
+                <table class="manual-term-table">
+                    <tr><td>GET 요청</td><td>"이 페이지 주세요" 요청 (조회용)</td></tr>
+                    <tr><td>POST 요청</td><td>"이 정보 보내요" 요청 (로그인, 검색)</td></tr>
+                    <tr><td>헤더 (Headers)</td><td>요청할 때 붙이는 꼬리표 (User-Agent, 쿠키 등)</td></tr>
+                    <tr><td>상태 코드</td><td>200 = 성공 / 404 = 없음 / 403 = 차단 / 500 = 서버오류</td></tr>
+                    <tr><td>응답 (Response)</td><td>서버가 돌려주는 결과 (HTML, JSON)</td></tr>
+                    <tr><td>세션 / 쿠키</td><td>로그인 유지용 &rarr; 크롤링할 때 중요</td></tr>
+                </table>
+
+                <div class="manual-step-banner">&#9632; STEP 6. 왜 차단 당할까? &mdash; 사이트가 막는 방법</div>
+                <div class="manual-p">&#9678; 요즘 사이트는 5단계로 봇을 잡습니다 :</div>
+                <table class="manual-term-table">
+                    <tr><td>1단계 : User-Agent 체크</td><td>브라우저가 아니면 차단 (파이썬 기본값은 Python-urllib)</td></tr>
+                    <tr><td>2단계 : IP 주소 차단</td><td>같은 IP에서 너무 많이 요청하면 Rate Limit 발동</td></tr>
+                    <tr><td>3단계 : JavaScript 실행</td><td>봇은 JS 못 돌림 &rarr; 내용 안 보임</td></tr>
+                    <tr><td>4단계 : 행동 패턴 분석</td><td>마우스 안 움직이고 너무 빨리 클릭 = 봇</td></tr>
+                    <tr><td>5단계 : CAPTCHA</td><td>"나는 로봇이 아님" 체크, 이미지 맞추기</td></tr>
+                </table>
+
+                <div class="manual-step-banner">&#9632; STEP 7. 차단 우회 기술 &mdash; 합법 범위 내에서</div>
+                <table class="manual-term-table">
+                    <tr><td>User-Agent 위장</td><td>크롬 브라우저인 척 꼬리표 달기 (기본 중 기본)</td></tr>
+                    <tr><td>Referer 헤더</td><td>"네이버에서 왔어요" 거짓말 (사이트별 요구사항)</td></tr>
+                    <tr><td>딜레이 (time.sleep)</td><td>요청 사이에 2~5초 간격 두기 &rarr; 가장 중요!</td></tr>
+                    <tr><td>랜덤 딜레이</td><td>1~7초 랜덤 &mdash; 사람처럼 보이게</td></tr>
+                    <tr><td>프록시 (Proxy)</td><td>IP 여러 개 돌려쓰기 (유료 서비스 많음)</td></tr>
+                    <tr><td>VPN</td><td>내 IP 완전히 바꾸기 (개인 크롤링용)</td></tr>
+                    <tr><td>쿠키 &middot; 세션 유지</td><td>로그인 상태 기억시켜서 요청</td></tr>
+                    <tr><td>헤드리스 브라우저</td><td>Playwright 로 진짜 크롬 띄워서 우회</td></tr>
+                    <tr><td>Stealth 플러그인</td><td>봇 티 안 나게 브라우저 속이기</td></tr>
+                    <tr><td>CAPTCHA 서비스</td><td>2Captcha, CapSolver &mdash; 유료로 풀어줌 (최후의 수단)</td></tr>
+                </table>
+
+                <div class="manual-p"><strong>&#9654; Claude 에게 이렇게 요청하세요</strong></div>
+                <div class="manual-prompt-box">
+                    <div class="manual-prompt-label">Claude 프롬프트 예시</div>쿠팡에서 "여성 원피스" 검색 결과 1~5페이지 상품명 / 가격 / 판매자 /
+별점 / 리뷰수를 긁어오려고 해. 쿠팡은 JS 사이트라 차단도 심해.
+Playwright 로 User-Agent 위장 + 랜덤 3~7초 딜레이 + 스크롤
+자동화까지 넣어서 CSV 로 저장하는 파이썬 코드 만들어줘.</div>
+
+                <div class="manual-step-banner" style="background: linear-gradient(135deg, #5b21b6, #7c3aed);">&#9654; 쇼핑몰 실전 사례 5가지</div>
+
+                <div class="manual-case-box">
+                    <div class="manual-case-header">&#9632; 사례 1. 경쟁사 가격 매일 추적하기</div>
+                    <div class="manual-case-body">
+                        <div class="manual-p">&#9678; 목표 : 내 상품과 같은 경쟁사 상품 10개를 매일 오전 9시에 자동 확인</div>
+                        <div class="manual-prompt-box">
+                            <div class="manual-prompt-label">Claude 프롬프트</div>아래 경쟁사 상품 URL 10개를 매일 오전 9시에 자동으로 열어서
+상품명 / 현재가격 / 할인율 / 재고여부를 엑셀 (가격추적.xlsx) 에
+날짜별로 누적 저장하는 파이썬 스크립트 만들어줘.
+cron 또는 Windows 작업 스케줄러로 자동 실행되게 해줘.
+URL 목록 : [ 여기에 URL 10개 ]</div>
+                    </div>
+                </div>
+
+                <div class="manual-case-box">
+                    <div class="manual-case-header">&#9632; 사례 2. 네이버쇼핑 베스트셀러 자동 수집</div>
+                    <div class="manual-case-body">
+                        <div class="manual-p">&#9678; 목표 : 내 카테고리 베스트셀러 매주 월요일 자동 리스팅</div>
+                        <div class="manual-prompt-box">
+                            <div class="manual-prompt-label">Claude 프롬프트</div>네이버쇼핑에서 "패션의류 여성" 카테고리 베스트 1~50위를
+매주 월요일 아침에 긁어서 상품명 / 가격 / 판매자 / 리뷰수 /
+상품 URL 을 엑셀로 저장해줘. 지난 주 대비 새로 진입한 상품은
+빨간색으로 표시해줘 (트렌드 포착용).</div>
+                    </div>
+                </div>
+
+                <div class="manual-case-box">
+                    <div class="manual-case-header">&#9632; 사례 3. 내 상품 리뷰 감정분석</div>
+                    <div class="manual-case-body">
+                        <div class="manual-p">&#9678; 목표 : 내 쇼핑몰 최근 리뷰 자동 수집 + AI 가 칭찬/불만 분류</div>
+                        <div class="manual-prompt-box">
+                            <div class="manual-prompt-label">Claude 프롬프트</div>내 쇼핑몰 ( URL ) 의 최근 100개 리뷰를 긁어서 Claude API 로
+각 리뷰를 "긍정 / 부정 / 중립" 으로 분류하고,
+부정 리뷰의 핵심 불만 키워드 TOP 10 을 뽑아줘.
+결과는 리뷰분석_(날짜).xlsx 로 저장.</div>
+                    </div>
+                </div>
+
+                <div class="manual-case-box">
+                    <div class="manual-case-header">&#9632; 사례 4. 도매처 재고 &middot; 가격 모니터링</div>
+                    <div class="manual-case-body">
+                        <div class="manual-p">&#9678; 목표 : 도매꾹 &middot; 도매매 등 여러 도매처 가격 한눈에</div>
+                        <div class="manual-prompt-box">
+                            <div class="manual-prompt-label">Claude 프롬프트</div>도매꾹에서 내가 파는 상품 키워드 10개를 검색해서
+같은 상품의 도매가격 최저 5개씩 찾아줘.
+내 매입가 대비 더 저렴한 공급처 있으면 알림 (이메일)
+보내주는 시스템 만들어줘. 하루 1회 자동 실행.</div>
+                    </div>
+                </div>
+
+                <div class="manual-case-box">
+                    <div class="manual-case-header">&#9632; 사례 5. 인스타 &middot; 블로그 트렌드 키워드 추적</div>
+                    <div class="manual-case-body">
+                        <div class="manual-p">&#9678; 목표 : 내 업종 SNS 트렌드 키워드 자동 발굴 &rarr; 광고 &middot; 상품기획</div>
+                        <div class="manual-prompt-box">
+                            <div class="manual-prompt-label">Claude 프롬프트</div>네이버 블로그에서 "여름 원피스" 최근 일주일 게시글 100개를
+긁어서 제목 &middot; 본문에 자주 나오는 키워드 TOP 30 을 뽑아줘.
+불용어 (은, 는, 이, 가 등) 제외하고, 명사 위주로.
+결과 워드클라우드 이미지도 만들어줘.</div>
+                    </div>
+                </div>
+
+                <div class="manual-step-banner" style="background: linear-gradient(135deg, #b91c1c, #ef4444);">&#9632; STEP 8. 꼭 지켜야 할 것 &mdash; 합법 크롤링</div>
+                <table class="manual-term-table">
+                    <tr><td>robots.txt 확인</td><td>사이트주소/robots.txt &rarr; 금지 구역 확인 (무조건 지키기)</td></tr>
+                    <tr><td>이용약관 확인</td><td>사이트 "이용약관" 에 크롤링 금지 조항 있는지 확인</td></tr>
+                    <tr><td>Rate Limit 준수</td><td>초당 1회 이하, 사이트에 부담 안 주는 속도로</td></tr>
+                    <tr><td>개인정보 절대 X</td><td>전화번호, 주소, 이메일 등 개인정보 수집 금지 (개인정보보호법)</td></tr>
+                    <tr><td>상업적 재판매 주의</td><td>긁은 데이터 그대로 다시 파는 건 저작권 문제 가능</td></tr>
+                    <tr><td>공개 데이터만</td><td>로그인 안 해도 누구나 볼 수 있는 데이터만 긁기</td></tr>
+                    <tr><td>출처 명시</td><td>분석 결과 공개 시 출처 사이트 명시하면 안전</td></tr>
+                </table>
+
+                <div class="manual-step-banner" style="background: linear-gradient(135deg, #047857, #10b981);">&#9632; STEP 9. 저장 &amp; 활용 &mdash; 긁은 데이터 요리하기</div>
+                <table class="manual-term-table">
+                    <tr><td>CSV / Excel</td><td>가장 간단, 엑셀로 바로 열어서 분석 가능</td></tr>
+                    <tr><td>JSON</td><td>프로그램끼리 주고받기 좋음</td></tr>
+                    <tr><td>SQLite</td><td>DB 파일 하나로 저장, SQL 쿼리 가능 (추천)</td></tr>
+                    <tr><td>PostgreSQL / MySQL</td><td>대용량 &middot; 여러 사람이 같이 쓸 때</td></tr>
+                    <tr><td>Google Sheets 연동</td><td>실시간으로 스프레드시트에 쌓기 &rarr; 팀 공유</td></tr>
+                    <tr><td>알림 연동</td><td>카톡 &middot; 슬랙 &middot; 이메일로 변동 있을 때만 알림</td></tr>
+                </table>
+
+                <div class="manual-step-banner" style="background: linear-gradient(135deg, #0369a1, #0ea5e9);">&#9654; 크롤링 전문가가 되는 3단계 로드맵</div>
+                <div class="manual-roadmap">
+                    <div class="manual-roadmap-item">
+                        <div class="manual-roadmap-dot">1</div>
+                        <div><strong>1단계 (1주일)</strong> : Claude 에게 "사례 1 (경쟁사 가격)" 그대로 시켜보기</div>
+                    </div>
+                    <div class="manual-roadmap-item">
+                        <div class="manual-roadmap-dot" style="background:#7c3aed;">2</div>
+                        <div><strong>2단계 (2주일)</strong> : 사례 5개 다 돌려보고 내 업종에 맞게 변형 요청</div>
+                    </div>
+                    <div class="manual-roadmap-item">
+                        <div class="manual-roadmap-dot" style="background:#059669;">3</div>
+                        <div><strong>3단계 (1개월)</strong> : 여러 크롤러를 매일 자동 실행 &rarr; 나만의 정보 대시보드 완성</div>
+                    </div>
+                </div>
+
+                <div class="manual-conclusion-box">
+                    <p>&#8251; 외우지 마세요! 모든 용어는 Claude 에게 "이거 뭐야? 쉽게 설명해줘" 하면 끝!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- GitHub 계정 목록 -->
     <div class="setup-section" id="github-accounts-section">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -1073,6 +1565,12 @@ tmux attach -t work              # 어제 상태 그대로!</code>
 
 {% block extra_js %}
 <script>
+// ━━━ Manual accordion toggle ━━━
+function toggleManual(id) {
+    var el = document.getElementById(id);
+    if (el) el.classList.toggle('open');
+}
+
 // Copy buttons
 document.querySelectorAll('.setup-copy-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {

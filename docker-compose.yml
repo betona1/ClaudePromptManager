@@ -7,6 +7,7 @@ services:
     volumes:
       - /home/joacham/.local/share/cpm:/data
       - cpm-screenshots:/app/static/screenshots
+      - /home/joacham/projects/cpm/google-sheets-key.json:/app/google-sheets-key.json:ro
     environment:
       - CPM_DATA_DIR=/data
       - CPM_DEBUG=${CPM_DEBUG:-false}
@@ -19,7 +20,7 @@ services:
       - GITHUB_OAUTH_SECRET=${GITHUB_OAUTH_SECRET:-}
       - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
       - GOOGLE_OAUTH_SECRET=${GOOGLE_OAUTH_SECRET:-}
-      - GOOGLE_SHEETS_CREDENTIALS=${GOOGLE_SHEETS_CREDENTIALS:-}
+      - GOOGLE_SHEETS_CREDENTIALS=/app/google-sheets-key.json
       - GOOGLE_SHEETS_CREDENTIALS_JSON=${GOOGLE_SHEETS_CREDENTIALS_JSON:-}
       - GUNICORN_WORKERS=${GUNICORN_WORKERS:-2}
       - GUNICORN_THREADS=${GUNICORN_THREADS:-2}
